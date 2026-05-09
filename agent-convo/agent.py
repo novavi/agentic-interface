@@ -1,0 +1,35 @@
+import os
+import sys  # sys.executable ensures we use the venv Python for the MCP subprocess
+from pathlib import Path
+
+from dotenv import load_dotenv
+from langchain_openai import ChatOpenAI
+from langchain_mcp_adapters.client import MultiServerMCPClient
+from langgraph.prebuilt import create_react_agent
+
+load_dotenv()
+
+_MCP_SERVER = str(Path(__file__).parent / "mcp_server.py")
+_compiled = None
+
+
+async def graph():
+    """Async factory — initialised once, reused for the lifetime of the server process."""
+    global _compiled
+    if _compiled is not None:
+        return _compiled
+
+    client = MultiServerMCPClient(
+        {
+            "stock": {
+                "command": sys.executable,
+                "args": [_MCP_SERVER],
+                "transport": "stdio",
+            }
+        }
+    )
+    tools = await client.get_tools()
+
+    model = ChatOpenAI(model=os.environ.get("OPENAI_MODEL", "gpt-4o-mini"))
+    _compiled = create_react_agent(model, tools)
+    return _compiled
