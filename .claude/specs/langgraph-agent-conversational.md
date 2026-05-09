@@ -44,7 +44,8 @@ agent-convo/
 
 | Package | Purpose |
 |---|---|
-| `langgraph>=1.1` | Graph runtime and `create_react_agent` |
+| `langgraph>=1.1` | Graph runtime |
+| `langchain>=1.2` | `create_agent` (ReAct agent factory, moved here from `langgraph.prebuilt` in LangGraph 1.x) |
 | `langchain-openai>=0.3` | `ChatOpenAI` model integration |
 | `langchain-mcp-adapters>=0.2` | Bridges MCP tools into LangChain/LangGraph tool format |
 | `mcp>=1.27` | Official Python MCP SDK — used to define the MCP server |
@@ -56,7 +57,7 @@ agent-convo/
 |---|---|
 | `langgraph-cli[inmem]>=0.4` | Provides `langgraph dev` command for local serving |
 
-All dependencies use `>=` lower-bound constraints; `uv sync` resolves the latest compatible versions and writes `uv.lock`. Latest confirmed versions (May 2026): langgraph 1.1.10, langchain-openai 0.3.14, langchain-mcp-adapters 0.2.2, mcp 1.27.1, python-dotenv 1.2.2, langgraph-cli 0.4.25.
+All dependencies use `>=` lower-bound constraints; `uv sync` resolves the latest compatible versions and writes `uv.lock`. Latest confirmed versions (May 2026): langgraph 1.1.10, langchain 1.2.18, langchain-openai 0.3.14, langchain-mcp-adapters 0.2.2, mcp 1.27.1, python-dotenv 1.2.2, langgraph-cli 0.4.25.
 
 ---
 
@@ -167,7 +168,7 @@ Defines the LangGraph ReAct agent. Contains:
 3. **Graph factory** — an async function `graph()` that:
    - On first call, instantiates `MultiServerMCPClient` and calls `await client.get_tools()` (session lifecycle managed internally by the client — context manager usage removed in `langchain-mcp-adapters` 0.1.0+)
    - Instantiates `ChatOpenAI` with model from `OPENAI_MODEL` env var
-   - Returns `create_react_agent(model, tools)` — a compiled `Pregel` graph
+   - Returns `create_agent(model, tools)` from `langchain.agents` — a compiled `Pregel` graph
    - Caches the compiled graph in a module-level `_compiled` variable; subsequent calls return it immediately
 4. **Module-level `graph` export** — the async factory function exported as `graph`, referenced by `langgraph.json`; `langgraph dev` awaits it on each request and the cache ensures the MCP client is only initialised once
 
@@ -300,7 +301,12 @@ Issues encountered during Phase 1 bring-up and their resolutions:
 - As of `langchain-mcp-adapters` 0.1.0, context manager usage raises `NotImplementedError`
 - Fix: replaced with `tools = await client.get_tools()` — session lifecycle is now managed internally by the client
 
-**3. LangSmith API key banner in Studio UI**
+**3. `create_react_agent` deprecated in LangGraph 1.x**
+- `from langgraph.prebuilt import create_react_agent` is decorated `@deprecated` in LangGraph 1.x with `LangGraphDeprecatedSinceV10`
+- Moved to `langchain.agents`; replacement is `from langchain.agents import create_agent`
+- Fix: updated import in `agent.py`; added `langchain>=1.2` as an explicit dependency in `pyproject.toml`
+
+**4. LangSmith API key banner in Studio UI**
 - `langgraph dev` opens LangGraph Studio in the browser and displays a warning if `LANGSMITH_API_KEY` is absent
 - LangSmith is an optional tracing/observability service — the agent functions correctly without it
 - No action required; add `LANGSMITH_API_KEY` to `.env` only if tracing is desired

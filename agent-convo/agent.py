@@ -5,7 +5,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 from langchain_mcp_adapters.client import MultiServerMCPClient
-from langgraph.prebuilt import create_react_agent
+from langchain.agents import create_agent
 
 load_dotenv()
 
@@ -31,5 +31,5 @@ async def graph():
     tools = await client.get_tools()
 
     model = ChatOpenAI(model=os.environ.get("OPENAI_MODEL", "gpt-4o-mini"))
-    _compiled = create_react_agent(model, tools)
+    _compiled = create_agent(model, tools)
     return _compiled
