@@ -9,7 +9,7 @@ type StockResult = {
   company: string;
   ticker: string;
   currency: string;
-  data: { month: string; price: number }[];
+  data: { date: string; price: number }[];
   error?: string;
 };
 

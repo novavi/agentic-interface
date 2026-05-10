@@ -7,7 +7,7 @@ import HighchartsReact from "highcharts-react-official";
 interface StockPriceChartProps {
   company: string;
   ticker: string;
-  data: { month: string; price: number }[];
+  data: { date: string; price: number }[];
 }
 
 export default function StockPriceChart({ company, ticker, data }: StockPriceChartProps) {
@@ -41,9 +41,9 @@ export default function StockPriceChart({ company, ticker, data }: StockPriceCha
         type: "line",
         name: ticker,
         color: "#3b82f6",
-        data: data.map(({ month, price }) => {
-          const [y, m] = month.split("-").map(Number);
-          return [Date.UTC(y, m - 1, 1), price];
+        data: data.map(({ date, price }) => {
+          const [y, m, d] = date.split("-").map(Number);
+          return [Date.UTC(y, m - 1, d), price];
         }),
       },
     ],

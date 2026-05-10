@@ -5,7 +5,7 @@ from datetime import datetime
 from mcp.server.fastmcp import FastMCP
 
 from mock_data.company_overview import COMPANY_OVERVIEW
-from mock_data.stock_prices import ALIASES, MONTHS, STOCK_DATA
+from mock_data.stock_prices import ALIASES, STOCK_DATA
 
 # Proof-of-concept: for simplicity the MCP server is co-located in this project and
 # launched as a subprocess by the agent. For a real-world platform it would be a
@@ -45,7 +45,7 @@ def _resolve_company(name: str) -> str | None:
 
 @mcp.tool(name="get-stock-data")
 def get_stock_data(company_name: str) -> str:
-    """Return monthly closing stock prices for a Magnificent 7 company.
+    """Return weekly closing stock prices for a Magnificent 7 company.
 
     Args:
         company_name: Company name or ticker symbol (e.g. 'Apple', 'AAPL', 'Nvidia', 'NVDA')
@@ -56,17 +56,19 @@ def get_stock_data(company_name: str) -> str:
         return json.dumps({"error": f"Company '{company_name}' not found. Valid options: {valid}"})
 
     entry = STOCK_DATA[canonical]
-    period_start = datetime.strptime(MONTHS[0], "%Y-%m").strftime("%b %Y")
-    period_end = datetime.strptime(MONTHS[-1], "%Y-%m").strftime("%b %Y")
+    prices = [d["price"] for d in entry["data"]]
+    period_start = datetime.strptime(entry["data"][0]["date"], "%Y-%m-%d").strftime("%b %Y")
+    period_end = datetime.strptime(entry["data"][-1]["date"], "%Y-%m-%d").strftime("%b %Y")
     return json.dumps({
         "company": entry["company"],
         "ticker": entry["ticker"],
         "currency": "USD",
-        "summary": f"{entry['company']} ({entry['ticker']})\nClosing prices ({period_start} – {period_end})",
-        "data": [
-            {"month": month, "price": price}
-            for month, price in zip(MONTHS, entry["prices"])
-        ],
+        "summary": f"{entry['company']} ({entry['ticker']})\nWeekly closing prices ({period_start} – {period_end})",
+        "first_price": prices[0],
+        "last_price": prices[-1],
+        "high_price": max(prices),
+        "low_price": min(prices),
+        "data": entry["data"],
     })
 
 

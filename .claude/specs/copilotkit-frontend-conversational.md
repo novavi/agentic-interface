@@ -4,6 +4,7 @@
 Phase 1: Implemented
 Phase 2: Implemented
 Phase 3: Implemented
+Phase 4: Implemented
 
 ## Overview
 
@@ -521,3 +522,75 @@ renderToolCalls={[StockDataToolRenderer, CompanyOverviewToolRenderer]}
 - [x] While the tool is executing, a loading indicator is shown
 - [x] Asking for an unrecognised company renders an error message, not a broken card
 - [x] Stock price chart (Phase 2) continues to work alongside the overview card (no regression)
+
+---
+
+## Phase 4: Update Stock Price Chart for weekly data
+
+### Goals
+
+- Update `StockPriceChart.tsx` to consume `{ date: string; price: number }[]` (renamed from `month`, widened to full `YYYY-MM-DD`)
+- Update the Highcharts series transform to use the full date including day component
+- Update the `StockResult` type in `StockDataToolRenderer.tsx` to match
+
+Depends on: langgraph-agent-conversational.md Phase 5 (weekly data with `date` key in tool output).
+
+---
+
+### File Structure Changes
+
+No new files. Two existing components modified.
+
+---
+
+### `components/StockPriceChart.tsx` Changes
+
+**Props interface** — rename `month` → `date`:
+
+```typescript
+// before:
+data: { month: string; price: number }[]
+// after:
+data: { date: string; price: number }[]
+```
+
+**Highcharts series transform** — destructure `date` and extract the day component:
+
+```typescript
+// before:
+data.map(({ month, price }) => {
+  const [y, m] = month.split("-").map(Number);
+  return [Date.UTC(y, m - 1, 1), price];
+})
+// after:
+data.map(({ date, price }) => {
+  const [y, m, d] = date.split("-").map(Number);
+  return [Date.UTC(y, m - 1, d), price];
+})
+```
+
+No other Highcharts config changes needed. With 52 weekly points spanning ~1 year, `xAxis.type: "datetime"` auto-formats tick labels as month names (e.g. "Jun 2025") — visually similar to the 12-point chart.
+
+---
+
+### `components/StockDataToolRenderer.tsx` Changes
+
+Update `StockResult` type:
+
+```typescript
+// before:
+data: { month: string; price: number }[];
+// after:
+data: { date: string; price: number }[];
+```
+
+---
+
+### Acceptance Criteria (Phase 4)
+
+- [x] `StockPriceChart` props use `date: string` (not `month`)
+- [x] Highcharts series transform uses `[y, m, d]` from `YYYY-MM-DD`
+- [x] `StockDataToolRenderer` `StockResult` type uses `date` not `month`
+- [x] Asking "get stock price for Apple" renders the chart with 52 weekly data points
+- [x] x-axis shows readable monthly labels across the ~1 year range
+- [x] Company overview card (Phase 3) is unaffected (no regression)

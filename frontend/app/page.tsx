@@ -20,7 +20,7 @@ export default function Home() {
             instructions="You are a helpful assistant with access to stock price data for the Magnificent 7 companies (Apple, Microsoft, Google, Amazon, Meta, Tesla, Nvidia). Use the get-stock-data tool to look up stock prices when asked."
             labels={{
               initial:
-                "Hello! I have access to monthly stock price data for the Magnificent 7 companies. Try asking me about Apple, Microsoft, Google, Amazon, Meta, Tesla, or Nvidia.",
+                "Hello! I have access to weekly stock price data and company overviews for the Magnificent 7 companies. Try asking me about Apple, Microsoft, Google, Amazon, Meta, Tesla, or Nvidia.",
             }}
           />
         </main>

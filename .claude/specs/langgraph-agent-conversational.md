@@ -5,6 +5,7 @@ Phase 1: Implemented
 Phase 2: Implemented
 Phase 3: Implemented
 Phase 4: Implemented
+Phase 5: Implemented
 
 ## Overview
 
@@ -661,3 +662,185 @@ Meta, Tesla, and Nvidia.
 - [ ] Not-found input returns `{ "error": "..." }` JSON (same shape as `get-stock-data` error)
 - [ ] Agent responds with a single brief line (e.g. "Here is the company overview for Apple Inc.") rather than repeating the overview fields
 - [ ] All existing `get-stock-data` behaviour is unaffected (no regression)
+
+---
+
+## Phase 5: Weekly stock price data from JSON files
+
+### Goals
+
+- Replace the twelve fictional monthly price points in `stock_prices.py` with real weekly closing prices extracted from Alpha Vantage JSON files in `zz/stock-data/`
+- Drop the `MONTHS` constant entirely — the date is embedded in each data point
+- Cap each company at the 52 most recent weekly entries; discard anything older
+- Rename the per-entry key `month` → `date` throughout (Python output and TypeScript types) to accurately reflect weekly granularity and full `YYYY-MM-DD` dates
+- Update `mcp_server.py` to derive the summary period from the first/last data dates
+- Data is hardcoded directly in `stock_prices.py` — no runtime file I/O; `stock_prices.py` must remain self-contained with no dependency on any external file at runtime
+- Frontend type and transform updates are covered in copilotkit-frontend-conversational.md Phase 4
+
+Files changed:
+- `mock_data/stock_prices.py` — drop `MONTHS`; replace `prices` with `data: [{date, price}]`; hardcoded values
+- `mcp_server.py` — remove `MONTHS` import; update period derivation and docstring; pass `entry["data"]` directly as output; rename `month` → `date` in output shape
+- `agent.py` — update `_SYSTEM_PROMPT` to say "weekly closing prices"
+
+---
+
+### Input JSON Format (Alpha Vantage)
+
+```json
+{
+  "Meta Data": {
+    "1. Information": "Weekly Adjusted Prices and Volumes",
+    "2. Symbol": "AAPL",
+    "3. Last Refreshed": "2026-05-08",
+    "4. Time Zone": "US/Eastern"
+  },
+  "Weekly Adjusted Time Series": {
+    "2026-05-08": { "1. open": "...", "2. high": "...", "3. low": "...", "4. close": "293.3200", ... },
+    "2026-05-01": { "4. close": "280.1400", ... },
+    ...
+  }
+}
+```
+
+Key characteristics:
+- Entries are reverse-chronological (newest first)
+- Each key is a Friday end-of-week date (`YYYY-MM-DD`)
+- Closing price is `"4. close"` — a string; must be cast to float
+- Files cover ~53 weeks; the oldest entry is discarded to cap at exactly 52
+
+**Extraction logic applied when hardcoding data into `stock_prices.py`:**
+1. Read the `"Weekly Adjusted Time Series"` dict
+2. Sort keys descending (already in that order, but sort to guarantee it)
+3. Take the first 52 keys (most recent 52 weeks)
+4. Sort the 52 keys ascending (chronological — oldest first)
+5. For each key: `{"date": key, "price": round(float(entry["4. close"]), 2)}`
+
+---
+
+### JSON Files Required
+
+One file per company, named after the lowercase ticker symbol:
+
+| File | Company |
+|---|---|
+| `zz/stock-data/aapl.json` | Apple ✓ (provided) |
+| `zz/stock-data/msft.json` | Microsoft |
+| `zz/stock-data/googl.json` | Alphabet |
+| `zz/stock-data/amzn.json` | Amazon |
+| `zz/stock-data/meta.json` | Meta |
+| `zz/stock-data/tsla.json` | Tesla |
+| `zz/stock-data/nvda.json` | Nvidia |
+
+All files must be provided before implementation begins. The `zz/` folder is temporary and will not be committed.
+
+---
+
+### `mock_data/stock_prices.py` Changes
+
+**Remove:** `MONTHS` constant (the full list of 12 `YYYY-MM` strings).
+
+**Replace:** `prices` field (flat list of floats) in each `STOCK_DATA` entry with a `data` field (list of `{"date": str, "price": float}` dicts).
+
+New structure:
+
+```python
+STOCK_DATA = {
+    "apple": {
+        "ticker": "AAPL",
+        "company": "Apple Inc.",
+        "data": [
+            {"date": "2025-05-09", "price": 198.25},
+            {"date": "2025-05-16", "price": 200.13},
+            # ... 52 entries total, oldest first
+        ],
+    },
+    "microsoft": { ... },  # same structure
+    # ... remaining 5 companies
+}
+
+ALIASES = { ... }  # unchanged
+```
+
+`ALIASES` is unaffected. No other changes to this file.
+
+---
+
+### `mcp_server.py` Changes
+
+**Import line:** remove `MONTHS` (keep `ALIASES`, `STOCK_DATA`; `datetime` import stays for period formatting).
+
+**`get_stock_data` function:**
+
+- Remove the `MONTHS[0]` / `MONTHS[-1]` period derivation; replace with:
+  ```python
+  period_start = datetime.strptime(entry["data"][0]["date"], "%Y-%m-%d").strftime("%b %Y")
+  period_end   = datetime.strptime(entry["data"][-1]["date"], "%Y-%m-%d").strftime("%b %Y")
+  ```
+- Update `summary` string to say "Weekly closing prices":
+  ```python
+  "summary": f"{entry['company']} ({entry['ticker']})\nWeekly closing prices ({period_start} – {period_end})"
+  ```
+- Replace the `zip(MONTHS, entry["prices"])` list comprehension with a direct pass-through:
+  ```python
+  # old:
+  "data": [{"month": month, "price": price} for month, price in zip(MONTHS, entry["prices"])]
+  # new:
+  "data": entry["data"]
+  ```
+- Update docstring: "Return **weekly** closing stock prices" (was "monthly").
+
+**`get_company_overview` function:** no changes.
+
+---
+
+### JSON Output Shape (updated)
+
+```json
+{
+  "company": "Apple Inc.",
+  "ticker": "AAPL",
+  "currency": "USD",
+  "summary": "Apple Inc. (AAPL)\nWeekly closing prices (May 2025 – May 2026)",
+  "data": [
+    { "date": "2025-05-09", "price": 198.25 },
+    { "date": "2025-05-16", "price": 200.13 },
+    ...
+  ]
+}
+```
+
+Key changes from Phase 2:
+
+| Field | Before | After |
+|---|---|---|
+| `data[n].month` (key) | `"month"` (`YYYY-MM`) | `"date"` (`YYYY-MM-DD`) |
+| `data` length | 12 entries | 52 entries |
+| `summary` label | "Closing prices" | "Weekly closing prices" |
+| `summary` period source | `MONTHS[0]`, `MONTHS[-1]` | `data[0]["date"]`, `data[-1]["date"]` |
+
+---
+
+### `agent.py` System Prompt Update
+
+Update the stock price instruction paragraph to say "weekly" so the LLM's natural-language response is accurate:
+
+```
+# before:
+"...reply with a 2–3 sentence summary covering company name, ticker, period, opening/closing prices, and the highest and lowest closing prices over the period."
+
+# after:
+"...reply with a 2–3 sentence summary covering company name, ticker, period covered, the first and last weekly closing prices, and the single highest and lowest weekly closing prices over the period."
+```
+
+---
+
+### Acceptance Criteria (Phase 5)
+
+- [x] `MONTHS` constant is removed from `stock_prices.py`
+- [x] Each company's `data` array contains exactly 52 entries, sorted oldest-first
+- [x] Each entry has `date` (`YYYY-MM-DD` string) and `price` (float, 2 decimal places) fields
+- [x] `get-stock-data` JSON output uses `"date"` key (not `"month"`) in `data` entries
+- [x] `summary` field says "Weekly closing prices"
+- [x] Period in `summary` is derived from `data[0]["date"]` and `data[-1]["date"]`
+- [x] All seven companies work; all existing aliases and fuzzy matching are unaffected
+- [x] `get-company-overview` behaviour is unaffected (no regression)
