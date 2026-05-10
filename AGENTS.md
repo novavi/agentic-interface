@@ -12,3 +12,8 @@
 - Never run any git command that writes to or modifies repository state — this includes staging, unstaging, committing, resetting, pushing, pulling, merging, rebasing, and switching branches.
 - The only permitted git commands are read-only ones (e.g. `git log`, `git diff`, `git status`, `git show`).
 - Even read-only git commands must not be run without first asking the user for explicit permission.
+
+## npm Operations
+
+- Never run any npm command without first asking for explicit permission.
+- For package installation, version upgrades, uninstallation, and script execution: provide the exact command(s) for the user to run, then wait for the user to confirm the commands have been run and share any relevant output before proceeding.

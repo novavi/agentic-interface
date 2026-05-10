@@ -12,6 +12,16 @@ load_dotenv()
 _MCP_SERVER = str(Path(__file__).parent / "mcp_server.py")
 _compiled = None
 
+_SYSTEM_PROMPT = """You are a helpful assistant with access to closing stock price data \
+for the Magnificent 7 companies: Apple, Microsoft, Alphabet (Google), Amazon, Meta, Tesla, \
+and Nvidia.
+
+When you retrieve stock price data, a chart is rendered automatically in the UI — do not \
+list individual data points in your response. Instead, reply with a concise 2–3 sentence \
+summary that covers: the company name and ticker, the period covered, the closing price at \
+the start and end of the period, and the highest and lowest closing prices reached during \
+that period."""
+
 
 async def graph():
     """Async factory — initialised once, reused for the lifetime of the server process."""
@@ -35,5 +45,5 @@ async def graph():
     tools = await client.get_tools()
 
     model = ChatOpenAI(model=os.environ.get("OPENAI_MODEL", "gpt-4o-mini"))
-    _compiled = create_agent(model, tools)
+    _compiled = create_agent(model, tools, system_prompt=_SYSTEM_PROMPT)
     return _compiled

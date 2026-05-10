@@ -2,6 +2,7 @@
 
 ## Status
 Phase 1: Implemented
+Phase 2: Implemented
 
 ## Overview
 
@@ -230,3 +231,179 @@ npm run dev                         # starts on http://localhost:3000
 - [x] Sending "get stock price for apple" returns the 12 monthly data points (requires agent-convo running)
 - [x] Responses stream visibly (tokens appear progressively, not all at once)
 - [x] `.env.local` is not committed; `.env.local.example` is
+
+---
+
+## Phase 2: Backend Tool Renderer — Stock Price Chart
+
+### Goals
+
+- Install Highcharts npm packages into `frontend/`
+- Create a `StockPriceChart` React component that renders closing prices as a Highcharts line chart with a dark theme
+- Define a CopilotKit tool call renderer for `get-stock-data` using `defineToolCallRenderer`
+- Wire the renderer into `Providers.tsx` via the `renderToolCalls` prop on `<CopilotKit>`
+- When the agent calls `get-stock-data`, the chat UI renders the chart instead of dumping JSON text
+
+---
+
+### npm Packages
+
+```bash
+npm install highcharts highcharts-react-official zod
+```
+
+- `highcharts` — core charting library
+- `highcharts-react-official` — official React wrapper for Highcharts
+- `zod` — schema library for `defineToolCallRenderer`'s `args` type; installed as a direct dep for explicitness (CopilotKit already depends on it transitively at v4.x)
+
+---
+
+### CopilotKit Tool Renderer API (v1.57.1)
+
+The v2 tool renderer API works as follows:
+
+- **`defineToolCallRenderer`** — helper from `@copilotkit/react-core/v2` (subpath export); accepts `{ name, args, render, agentId? }` and returns a `ReactToolCallRenderer` object. The main `@copilotkit/react-core` entry point side-effect-imports this for runtime use only and does not re-export it in TypeScript types.
+  - `name` — the exact MCP/tool name to intercept: `"get-stock-data"`
+  - `args` — a Standard Schema V1 compatible schema (zod works); used for TypeScript inference of `args` in the render component
+  - `render` — a React component (`React.ComponentType`) receiving `{ name, toolCallId, args, status, result }`
+    - `args` — the (partially) streamed tool arguments, typed from the schema
+    - `status` — `ToolCallStatus` enum: `InProgress` (args streaming), `Executing` (tool running server-side), `Complete` (result available)
+    - `result` — a JSON string when `status === Complete`; needs `JSON.parse` to use
+- **`renderToolCalls`** — prop on `<CopilotKit>` accepting an array of `ReactToolCallRenderer` objects
+- **`ToolCallStatus`** — enum from `@copilotkit/core` (transitive dep of `@copilotkit/react-core`); values: `InProgress`, `Executing`, `Complete`
+
+---
+
+### File Structure Changes
+
+```
+frontend/
+├── components/
+│   ├── StockPriceChart.tsx         # NEW — "use client" Highcharts chart component
+│   ├── StockDataToolRenderer.tsx   # NEW — defineToolCallRenderer definition (JSX render fn)
+│   └── Providers.tsx               # MODIFY — add renderToolCalls prop to <CopilotKit>
+```
+
+---
+
+### File Descriptions
+
+#### `components/StockPriceChart.tsx`
+
+A `"use client"` React component that receives focused chart props and renders the Highcharts line chart. Status branching and result parsing happen upstream in the `StockDataToolRenderer.tsx` render function; this component only renders the chart (or the loading indicator if not yet mounted).
+
+Props:
+```typescript
+interface StockPriceChartProps {
+  company: string
+  ticker: string
+  data: { month: string; price: number }[]
+}
+```
+
+The `StockDataToolRenderer` render function handles:
+- `InProgress` / `Executing` → renders an inline loading paragraph (does not mount `StockPriceChart` at all)
+- `Complete` → parses `result`, checks for an error field, then mounts `StockPriceChart` with the extracted fields
+
+**SSR guard:** Highcharts accesses `window` at import time. In Next.js App Router, `"use client"` components are still pre-rendered on the server by default. Guard the chart render with a mounted state:
+```typescript
+const [mounted, setMounted] = useState(false)
+useEffect(() => setMounted(true), [])
+if (!mounted) return <LoadingState />
+```
+Only render `<HighchartsReact>` after `mounted` is true.
+
+**Highcharts config (dark theme):**
+
+| Option | Value | Rationale |
+|---|---|---|
+| `chart.height` | `350` | explicit pixel height — Highcharts owns its dimensions rather than inheriting from a CSS container; avoids x-axis clipping inside the chat message bubble |
+| `chart.backgroundColor` | `'#030712'` | matches `bg-gray-950` app background |
+| `chart.style.fontFamily` | `'inherit'` | inherits Geist from the page |
+| `title.text` | `"{company} ({ticker})"` | populated from parsed result |
+| `title.style.color` | `'#f9fafb'` | gray-50 — high contrast on dark bg |
+| `xAxis.type` | `'datetime'` | Highcharts handles datetime tick spacing |
+| xAxis x values | `Date.UTC(year, month - 1, 1)` | `"YYYY-MM"` → split on `'-'` → `Date.UTC(y, m-1, 1)` |
+| `xAxis` labels/grid | `color: '#9ca3af'`, `gridLineColor: '#1f2937'` | gray-400 / gray-800 |
+| `yAxis.title.text` | `'Price (USD)'` | currency communicated via axis title — no `$` prefix on labels |
+| `yAxis.labels.style.color` | `'#9ca3af'` | gray-400; no format override (Highcharts default numeric formatting) |
+| `yAxis.gridLineColor` | `'#1f2937'` | gray-800 |
+| `series[0].type` | `'line'` | clean line chart for time series |
+| `series[0].name` | ticker symbol | populated from parsed result |
+| `series[0].color` | `'#3b82f6'` | blue-500 — visible on dark bg |
+| `series[0].data` | `[[timestamp, price], ...]` | Highcharts datetime series format |
+| `tooltip.backgroundColor` | `'#111827'` | gray-900 |
+| `tooltip.style.color` | `'#f9fafb'` | |
+| `tooltip.valuePrefix` | `'$'` | tooltip shows `$` prefix inline — distinct from the axis label context |
+| `legend.itemStyle.color` | `'#9ca3af'` | gray-400 |
+| `credits.enabled` | `false` | removes Highcharts.com link |
+
+#### `components/StockDataToolRenderer.tsx`
+
+A `.tsx` module (JSX needed — the `render` function returns JSX inline). Exports the renderer object created by `defineToolCallRenderer`.
+
+The `render` prop is typed as `(props: RenderProps<T>) => React.ReactElement` (a plain function, not a `React.ComponentType`), so branching on `status` and delegating to `StockPriceChart` happens inside an inline render function. `result` is typed as `string` only in the `Complete` branch of the discriminated union — `JSON.parse` is safe without extra null guards.
+
+```tsx
+import { defineToolCallRenderer } from "@copilotkit/react-core/v2"
+import { ToolCallStatus } from "@copilotkit/core"
+import { z } from "zod"
+import StockPriceChart from "./StockPriceChart"
+
+const argsSchema = z.object({ company_name: z.string() })
+
+export const StockDataToolRenderer = defineToolCallRenderer({
+  name: "get-stock-data",
+  args: argsSchema,
+  render: ({ status, result }) => {
+    if (status === ToolCallStatus.Complete) {
+      const parsed = JSON.parse(result) as { company, ticker, currency, data, error? }
+      if (parsed.error) return <p className="text-red-400 text-sm">{parsed.error}</p>
+      return <StockPriceChart company={parsed.company} ticker={parsed.ticker} data={parsed.data} />
+    }
+    return <p className="text-gray-400 text-sm animate-pulse">Loading chart…</p>
+  },
+})
+```
+
+No `"use client"` directive needed — this module is only imported from `Providers.tsx` (already a client boundary), so it inherits the client context.
+
+#### `components/Providers.tsx` (modified)
+
+Add the import and `renderToolCalls` prop:
+
+```typescript
+import { StockDataToolRenderer } from "./StockDataToolRenderer"
+
+// Inside the JSX:
+<CopilotKit
+  runtimeUrl="/api/copilotkit"
+  agent="agent"
+  renderToolCalls={[StockDataToolRenderer]}
+>
+  {children}
+</CopilotKit>
+```
+
+---
+
+### Implementation Notes
+
+- **Import path for `ToolCallStatus`** — confirmed as `@copilotkit/core` (a transitive dep, present in `node_modules`). Not re-exported from `@copilotkit/react-core`.
+- **Highcharts SSR** — the `mounted` guard is the minimal approach. An alternative is `dynamic(() => import('./StockPriceChart'), { ssr: false })` at the `StockDataToolRenderer.tsx` call site, which also works.
+- **`result` is always a string** — even if the tool returns structured JSON, CopilotKit passes it as a serialised string. Always `JSON.parse(result)`.
+- **Error result** — if the MCP tool returns `{ "error": "..." }` (unrecognised company), handle it: if `parsed.error` exists, render an error message rather than a chart.
+- **Chart height** — set `chart.height` in the Highcharts options (not via CSS on a wrapper div). This prevents x-axis clipping inside the chat bubble: at the old `h-72` (288px) CSS approach, title + plot area + legend left insufficient room for x-axis labels and they were hidden. `chart.height: 350` gives reliable breathing room. No wrapper div or `containerProps` height needed — `<HighchartsReact>` is returned directly.
+
+---
+
+### Acceptance Criteria (Phase 2)
+
+- [x] `npm install` completes without errors after adding the three packages
+- [x] Asking "get stock price for Apple" renders a Highcharts line chart in the chat (not raw JSON)
+- [x] Chart title shows "Apple Inc. (AAPL)"
+- [x] x-axis shows the 12 months (Jun 2025 – May 2026) as readable dates (was clipped at h-72; fixed by setting `chart.height: 350` — pending re-verification)
+- [x] y-axis shows price values with no `$` prefix on labels; currency communicated via "Price (USD)" axis title
+- [x] Chart background matches the dark app background (no white box)
+- [x] While the tool is executing, a loading indicator is shown
+- [x] Asking for an unrecognised company (e.g. "get stock price for Coinbase") renders an error message, not a broken chart

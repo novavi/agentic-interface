@@ -148,18 +148,21 @@ Defines the MCP server using the `mcp` SDK with stdio transport. Contains a file
 Defines the LangGraph ReAct agent. Contains:
 
 1. **Env loading** — `load_dotenv()` at module top
-2. **MCP client setup** — uses `MultiServerMCPClient` from `langchain-mcp-adapters` configured to launch `mcp_server.py` via stdio transport. A comment above the client configuration notes that for simplicity the MCP server is co-located (proof-of-concept); for a real-world platform it would be a separate project on its own endpoint connected over HTTP:
+2. **System prompt** — a module-level `_SYSTEM_PROMPT` string passed to `create_agent` as `system_prompt=`. Instructs the agent to:
+   - Not list individual data points (a chart is rendered in the UI automatically)
+   - Reply with a 2–3 sentence summary covering company name, ticker, period, opening/closing prices, and the highest and lowest closing prices over the period
+3. **MCP client setup** — uses `MultiServerMCPClient` from `langchain-mcp-adapters` configured to launch `mcp_server.py` via stdio transport. A comment above the client configuration notes that for simplicity the MCP server is co-located (proof-of-concept); for a real-world platform it would be a separate project on its own endpoint connected over HTTP:
    ```
    command: sys.executable   (ensures the venv Python is used for the subprocess)
    args: [absolute path to mcp_server.py]
    transport: "stdio"
    ```
-3. **Graph factory** — an async function `graph()` that:
+4. **Graph factory** — an async function `graph()` that:
    - On first call, instantiates `MultiServerMCPClient` and calls `await client.get_tools()` (session lifecycle managed internally by the client — context manager usage removed in `langchain-mcp-adapters` 0.1.0+)
    - Instantiates `ChatOpenAI` with model from `OPENAI_MODEL` env var
-   - Returns `create_agent(model, tools)` from `langchain.agents` — a compiled `Pregel` graph
+   - Returns `create_agent(model, tools, system_prompt=_SYSTEM_PROMPT)` from `langchain.agents` — a compiled `Pregel` graph
    - Caches the compiled graph in a module-level `_compiled` variable; subsequent calls return it immediately
-4. **Module-level `graph` export** — the async factory function exported as `graph`, referenced by `langgraph.json`; `langgraph dev` awaits it on each request and the cache ensures the MCP client is only initialised once
+5. **Module-level `graph` export** — the async factory function exported as `graph`, referenced by `langgraph.json`; `langgraph dev` awaits it on each request and the cache ensures the MCP client is only initialised once
 
 ---
 
@@ -307,7 +310,7 @@ Issues encountered during Phase 1 bring-up and their resolutions:
 
 - [x] `uv sync` completes without errors
 - [x] `uv run langgraph dev` starts without errors and the `/docs` endpoint is reachable
-- [x] A prompt like `"get stock price for apple"` returns the 12 monthly data points for Apple
+- [ ] A prompt like `"get stock price for apple"` returns a concise summary (company, period, start/end price, high/low) — not a verbatim list of data points (requires `langgraph dev` restart after system prompt was added)
 - [x] Company name matching is case-insensitive (`Apple`, `apple`, `AAPL`, `aapl` all resolve)
 - [x] `.env` is not tracked by git; `.env.example` is
 - [x] `uv.lock` and `.python-version` are tracked by git
