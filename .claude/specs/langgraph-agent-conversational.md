@@ -787,6 +787,15 @@ ALIASES = { ... }  # unchanged
   # new:
   "data": entry["data"]
   ```
+- Add four precomputed summary fields derived in Python so the LLM does not have to scan the data array itself (LLMs are unreliable at finding max/min across 52 values):
+  ```python
+  prices = [d["price"] for d in entry["data"]]
+  # included in the returned dict:
+  "first_price": prices[0],
+  "last_price":  prices[-1],
+  "high_price":  max(prices),
+  "low_price":   min(prices),
+  ```
 - Update docstring: "Return **weekly** closing stock prices" (was "monthly").
 
 **`get_company_overview` function:** no changes.
@@ -801,9 +810,13 @@ ALIASES = { ... }  # unchanged
   "ticker": "AAPL",
   "currency": "USD",
   "summary": "Apple Inc. (AAPL)\nWeekly closing prices (May 2025 – May 2026)",
+  "first_price": 211.26,
+  "last_price": 293.32,
+  "high_price": 293.32,
+  "low_price": 195.27,
   "data": [
-    { "date": "2025-05-09", "price": 198.25 },
-    { "date": "2025-05-16", "price": 200.13 },
+    { "date": "2025-05-16", "price": 211.26 },
+    { "date": "2025-05-23", "price": 195.27 },
     ...
   ]
 }
@@ -817,20 +830,26 @@ Key changes from Phase 2:
 | `data` length | 12 entries | 52 entries |
 | `summary` label | "Closing prices" | "Weekly closing prices" |
 | `summary` period source | `MONTHS[0]`, `MONTHS[-1]` | `data[0]["date"]`, `data[-1]["date"]` |
+| `first_price`, `last_price`, `high_price`, `low_price` | absent | precomputed in Python; LLM reads these directly |
 
 ---
 
 ### `agent.py` System Prompt Update
 
-Update the stock price instruction paragraph to say "weekly" so the LLM's natural-language response is accurate:
+Update the stock price instruction paragraph to reference the precomputed fields and say "weekly":
 
 ```
 # before:
 "...reply with a 2–3 sentence summary covering company name, ticker, period, opening/closing prices, and the highest and lowest closing prices over the period."
 
 # after:
-"...reply with a 2–3 sentence summary covering company name, ticker, period covered, the first and last weekly closing prices, and the single highest and lowest weekly closing prices over the period."
+"...the company name and ticker, the period covered, the first and last weekly closing prices,
+and the highest and lowest weekly closing prices. Use the precomputed fields `first_price`,
+`last_price`, `high_price`, and `low_price` from the tool result directly — do not derive
+these values yourself from the data array."
 ```
+
+The instruction to use precomputed fields is necessary because LLMs are unreliable at finding max/min across 52 values — they tend to scan and stop early, returning a local extremum instead of the global one.
 
 ---
 
@@ -842,5 +861,7 @@ Update the stock price instruction paragraph to say "weekly" so the LLM's natura
 - [x] `get-stock-data` JSON output uses `"date"` key (not `"month"`) in `data` entries
 - [x] `summary` field says "Weekly closing prices"
 - [x] Period in `summary` is derived from `data[0]["date"]` and `data[-1]["date"]`
+- [x] JSON output includes `first_price`, `last_price`, `high_price`, `low_price` precomputed fields
+- [x] Agent summary uses the precomputed fields and does not scan the data array itself
 - [x] All seven companies work; all existing aliases and fuzzy matching are unaffected
 - [x] `get-company-overview` behaviour is unaffected (no regression)

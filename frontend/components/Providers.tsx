@@ -1,18 +1,18 @@
 "use client";
 
-import { CopilotKit } from "@copilotkit/react-core";
-import "@copilotkit/react-ui/styles.css";
+import { CopilotKitProvider } from "@copilotkit/react-core/v2";
+import "@copilotkit/react-core/v2/styles.css";
 import { StockDataToolRenderer } from "./StockDataToolRenderer";
 import { CompanyOverviewToolRenderer } from "./CompanyOverviewToolRenderer";
 
 export default function Providers({ children }: { children: React.ReactNode }) {
   return (
-    <CopilotKit
+    <CopilotKitProvider
       runtimeUrl="/api/copilotkit"
-      agent="agent"
+      showDevConsole={true}
       renderToolCalls={[StockDataToolRenderer, CompanyOverviewToolRenderer]}
     >
       {children}
-    </CopilotKit>
+    </CopilotKitProvider>
   );
 }

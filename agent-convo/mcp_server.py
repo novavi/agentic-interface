@@ -7,6 +7,10 @@ from mcp.server.fastmcp import FastMCP
 from mock_data.company_overview import COMPANY_OVERVIEW
 from mock_data.stock_prices import ALIASES, STOCK_DATA
 
+# Proof-of-concept: for simplicity the MCP server uses hardcoded mock data for stock prices
+# and company overviews. For a real-world platform it would source this data from a financial
+# data API.
+
 # Proof-of-concept: for simplicity the MCP server is co-located in this project and
 # launched as a subprocess by the agent. For a real-world platform it would be a
 # separate project hosted on its own endpoint, and the agent would connect to it
