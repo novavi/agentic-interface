@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "patch:cki": "node scripts/patch-cki.mjs",
+    "postinstall": "npm run patch:cki"
   },
   "dependencies": {
     "@copilotkit/react-core": "^1.57.1",
