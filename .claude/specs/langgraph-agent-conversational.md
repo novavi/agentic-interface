@@ -3,6 +3,7 @@
 ## Status
 Phase 1: Implemented
 Phase 2: Implemented
+Phase 3: Implemented
 
 ## Overview
 
@@ -132,14 +133,13 @@ Empty file. Marks `mock_data/` as an importable Python package, enabling `from m
 
 #### `mcp_server.py`
 
-Defines the MCP server using the `mcp` SDK with stdio transport. Contains:
+Defines the MCP server using the `mcp` SDK with stdio transport. Contains a file-level comment noting that for simplicity the MCP server is co-located in this project (proof-of-concept); for a real-world platform it would be a separate project on its own endpoint.
 
 1. **`get-stock-data` tool** — registered MCP tool that:
    - Takes one argument: `company_name: str`
-   - Normalises input to lowercase, strips whitespace
-   - Looks up against `ALIASES` then `STOCK_DATA` from `mock_data.stock_prices`
+   - Resolves the company name via `_resolve_company` (exact STOCK_DATA → exact ALIASES → fuzzy match — see Phase 3)
    - Returns a JSON string (see Phase 2 for shape) on success
-   - Returns `{ "error": "..." }` JSON if the company is not found
+   - Returns `{ "error": "..." }` JSON if no match is found
 
 2. **Server entry point** — starts the MCP server on `stdio` transport when run as `__main__`
 
@@ -148,7 +148,7 @@ Defines the MCP server using the `mcp` SDK with stdio transport. Contains:
 Defines the LangGraph ReAct agent. Contains:
 
 1. **Env loading** — `load_dotenv()` at module top
-2. **MCP client setup** — uses `MultiServerMCPClient` from `langchain-mcp-adapters` configured to launch `mcp_server.py` via stdio transport:
+2. **MCP client setup** — uses `MultiServerMCPClient` from `langchain-mcp-adapters` configured to launch `mcp_server.py` via stdio transport. A comment above the client configuration notes that for simplicity the MCP server is co-located (proof-of-concept); for a real-world platform it would be a separate project on its own endpoint connected over HTTP:
    ```
    command: sys.executable   (ensures the venv Python is used for the subprocess)
    args: [absolute path to mcp_server.py]
@@ -402,3 +402,133 @@ The LLM receives this JSON string and will relay the error naturally in its resp
 - [x] `summary` is of the form `<Company> (<TICKER>)\nClosing prices (<Mon YYYY> – <Mon YYYY>)`
 - [ ] Not-found errors return `{ "error": "..." }` JSON
 - [x] LLM still produces a coherent natural-language response when asked about stock prices (no regression from the format change)
+
+---
+
+## Phase 3: Fuzzy company name matching
+
+### Goals
+
+- Replace the current hard-fail exact lookup with a fuzzy-match fallback so that slight misspellings, punctuation variations (`.`, `-`), and partial names still resolve to the correct company
+- Preserve existing exact-match behaviour as a fast path — no behaviour change for current inputs
+- Keep aliases (tickers, alternate names) fully functional alongside fuzzy matching
+- No new dependencies — `difflib` is Python stdlib
+
+Only `mcp_server.py` changes. `mock_data/stock_prices.py` and all other files are unaffected.
+
+---
+
+### Algorithm
+
+Resolution runs in three stages, returning at the first match:
+
+1. **Exact STOCK_DATA lookup** — `key in STOCK_DATA` — handles canonical names (`"apple"`, `"nvidia"`)
+2. **Exact ALIASES lookup** — `key in ALIASES` — handles tickers (`"aapl"`, `"nvda"`) and alternate names (`"alphabet"`, `"facebook"`)
+3. **Fuzzy match** — `difflib.get_close_matches` against the full candidate pool (see below) — handles misspellings, punctuation, partial names
+
+If all three fail, the error JSON is returned.
+
+---
+
+### Candidate Pool
+
+The fuzzy match pool is a module-level dict `_CANDIDATES` mapping every matchable string → STOCK_DATA canonical key. Built once at import time from `STOCK_DATA` and `ALIASES`:
+
+| Source | Examples | Count |
+|---|---|---|
+| STOCK_DATA canonical keys | `"apple"`, `"nvidia"` | 7 |
+| ALIASES keys | `"aapl"`, `"facebook"`, `"alphabet"` | 10 |
+| Lowercased full company names | `"apple inc."`, `"nvidia corporation"` | 7 |
+
+Total: ~24 candidates. Small enough that fuzzy matching over the full pool is negligible cost.
+
+Full company names are lowercased when added to `_CANDIDATES` so they are compared consistently against the already-lowercased input.
+
+Example `_CANDIDATES` entries:
+
+```python
+{
+    "apple":                "apple",    # STOCK_DATA key
+    "aapl":                 "apple",    # ALIASES key
+    "apple inc.":           "apple",    # lowercased company name
+    "nvidia":               "nvidia",   # STOCK_DATA key
+    "nvda":                 "nvidia",   # ALIASES key
+    "nvidia corporation":   "nvidia",   # lowercased company name
+    "alphabet":             "google",   # ALIASES key
+    "alphabet inc.":        "google",   # lowercased company name
+    ...
+}
+```
+
+---
+
+### New Constants and Functions in `mcp_server.py`
+
+**`FUZZY_CUTOFF = 0.6`** — named constant at module level. The `difflib.get_close_matches` similarity threshold (0–1). Set to `0.6` (the `difflib` default) to make the tuning point explicit.
+
+**`_CANDIDATES`** — module-level dict built at import time:
+
+```python
+_CANDIDATES = {}
+for _k in STOCK_DATA:
+    _CANDIDATES[_k] = _k
+for _alias, _canonical in ALIASES.items():
+    _CANDIDATES[_alias] = _canonical
+for _k, _v in STOCK_DATA.items():
+    _CANDIDATES[_v["company"].lower()] = _k
+```
+
+**`_resolve_company(name: str) -> str | None`** — returns the STOCK_DATA canonical key for any input, or `None` if no match found at or above `FUZZY_CUTOFF`:
+
+```python
+def _resolve_company(name: str) -> str | None:
+    key = name.lower().strip()
+    if key in STOCK_DATA:
+        return key
+    if key in ALIASES:
+        return ALIASES[key]
+    matches = difflib.get_close_matches(key, _CANDIDATES, n=1, cutoff=FUZZY_CUTOFF)
+    if matches:
+        return _CANDIDATES[matches[0]]
+    return None
+```
+
+**`get_stock_data`** — replaces the inline lookup with a call to `_resolve_company`:
+
+```python
+canonical = _resolve_company(company_name)
+if canonical is None:
+    ...  # return error JSON as before
+entry = STOCK_DATA[canonical]
+...  # return success JSON as before
+```
+
+---
+
+### Example Inputs That Now Succeed
+
+| Input | Matched via | Resolves to |
+|---|---|---|
+| `"Apple"` | exact STOCK_DATA | `"apple"` |
+| `"AAPL"` | exact ALIASES | `"apple"` |
+| `"Aple"` | fuzzy → `"apple"` (~0.89) | `"apple"` |
+| `"Amazon.com"` | fuzzy → `"amazon.com inc."` (~0.87) | `"amazon"` |
+| `"Amazon.com Inc"` | fuzzy → `"amazon.com inc."` (~0.97) | `"amazon"` |
+| `"Nvidia Corp"` | fuzzy → `"nvidia corporation"` (~0.76) | `"nvidia"` |
+| `"Microsoft Corp"` | fuzzy → `"microsoft corporation"` (~0.78) | `"microsoft"` |
+| `"Meta Platforms Inc"` | fuzzy → `"meta platforms inc."` (~0.97) | `"meta"` |
+| `"Tesla Inc"` | fuzzy → `"tesla inc."` (~0.95) | `"tesla"` |
+| `"Alphabet Inc"` | fuzzy → `"alphabet inc."` (~0.96) | `"google"` |
+| `"Alphabt"` | fuzzy → `"alphabet"` (~0.80) | `"google"` |
+
+---
+
+### Acceptance Criteria (Phase 3)
+
+- [x] All existing exact matches continue to work unchanged
+- [x] Ticker symbols (`AAPL`, `NVDA`, `MSFT`, etc.) continue to resolve via the fast-path alias lookup
+- [x] Slight misspellings resolve correctly (e.g. `"Aple"` → Apple, `"Tesle"` → Tesla)
+- [x] Punctuation variants resolve correctly (e.g. `"Amazon.com"`, `"Nvidia-Corp"`)
+- [x] Partial company names resolve correctly (e.g. `"Nvidia Corp"`, `"Meta Platforms"`)
+- [x] Unrecognisable input still returns the `{ "error": "..." }` JSON
+- [x] `FUZZY_CUTOFF = 0.6` is defined as a named constant

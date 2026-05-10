@@ -19,6 +19,10 @@ async def graph():
     if _compiled is not None:
         return _compiled
 
+    # Proof-of-concept: for simplicity the MCP server is co-located in this project and
+    # launched as a subprocess over stdio. For a real-world platform it would be a
+    # separate project hosted on its own endpoint, and the client would connect to it
+    # over HTTP (SSE or streamable HTTP).
     client = MultiServerMCPClient(
         {
             "stock": {
