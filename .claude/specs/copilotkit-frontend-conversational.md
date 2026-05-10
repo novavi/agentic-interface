@@ -3,6 +3,7 @@
 ## Status
 Phase 1: Implemented
 Phase 2: Implemented
+Phase 3: Implemented
 
 ## Overview
 
@@ -407,3 +408,116 @@ import { StockDataToolRenderer } from "./StockDataToolRenderer"
 - [x] Chart background matches the dark app background (no white box)
 - [x] While the tool is executing, a loading indicator is shown
 - [x] Asking for an unrecognised company (e.g. "get stock price for Coinbase") renders an error message, not a broken chart
+
+---
+
+## Phase 3: Backend Tool Renderer — Company Overview Info Card
+
+### Goals
+
+- Create a `CompanyOverviewCard` React component that renders the structured `get-company-overview` result as a formatted info card
+- Define a CopilotKit tool call renderer for `get-company-overview` using `defineToolCallRenderer`
+- Wire the renderer into `Providers.tsx` alongside the existing `StockDataToolRenderer`
+- When the agent calls `get-company-overview`, the chat UI renders the info card instead of plain text
+
+Depends on: `get-company-overview` MCP tool (langgraph-agent-conversational.md Phase 4).
+
+---
+
+### File Structure Changes
+
+```
+frontend/
+├── components/
+│   ├── CompanyOverviewCard.tsx        # NEW — "use client" info card component
+│   ├── CompanyOverviewToolRenderer.tsx # NEW — defineToolCallRenderer definition
+│   └── Providers.tsx                  # MODIFY — add CompanyOverviewToolRenderer to renderToolCalls array
+```
+
+---
+
+### File Descriptions
+
+#### `components/CompanyOverviewCard.tsx`
+
+A React component (no hooks — no `"use client"` required; it inherits the client context from `Providers.tsx` via `CompanyOverviewToolRenderer.tsx`).
+
+**Props** — the six overview fields plus company header fields:
+```typescript
+interface CompanyOverviewCardProps {
+  company: string
+  ticker: string
+  overview: string
+  ceo: string
+  founded: string
+  headquarters: string
+  website: string
+  employees: string
+}
+```
+
+**Layout** — a rounded card with a slightly-off-black background (`bg-gray-900` / `#111827`), distinct from the `#030712` app background. Inside, a CSS grid with two columns: a fixed-width property label column and a flexible value column that wraps text freely:
+
+```tsx
+<div className="rounded-lg bg-gray-900 p-4">
+  <h3 className="...">{company} ({ticker})</h3>
+  <div className="grid grid-cols-[8rem_1fr] gap-x-6 gap-y-3 text-sm">
+    <span className="text-gray-400 font-medium shrink-0">Overview</span>
+    <span className="text-gray-100">{overview}</span>
+    ...
+  </div>
+</div>
+```
+
+- **Header** — `<h3>` containing `{company} ({ticker})`, e.g. "Apple Inc. (AAPL)". Ticker is the same colour and weight as the company name. Styled to stand out from the property rows (e.g. `text-gray-100 font-semibold mb-3`)
+- `grid-cols-[8rem_1fr]` — property label column is a fixed 8rem; value column takes remaining width and wraps freely — no max-height, no scroll; the card grows to full height of the content (critical for the Overview paragraph which spans several hundred words)
+- No borders — no outer border, no column divider, no row divider
+- No column headers
+- Property labels are hard-coded strings in the component: `Overview`, `CEO`, `Founded`, `Headquarters`, `Website`, `Employees` — in that order
+- Property label style: `text-gray-400 font-medium`
+- Value style: `text-gray-100`
+
+**Special value rendering:**
+
+- **Website** — rendered as an anchor:
+  ```tsx
+  <a href={website} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline">
+    {new URL(website).hostname}
+  </a>
+  ```
+  Link text is `hostname` from the parsed URL (e.g. `www.apple.com`). `target="_blank"` with `rel="noopener noreferrer"` is standard for external links.
+
+- **Employees** — parsed to integer and formatted with thousand separators:
+  ```tsx
+  {parseInt(employees, 10).toLocaleString('en-US')}
+  ```
+  e.g. `"166000"` → `"166,000"`
+
+#### `components/CompanyOverviewToolRenderer.tsx`
+
+Follows the same pattern as `StockDataToolRenderer.tsx`:
+- Imports `defineToolCallRenderer` from `@copilotkit/react-core/v2`
+- Imports `ToolCallStatus` from `@copilotkit/core`
+- Args schema: `z.object({ company_name: z.string() })`
+- Tool name: `"get-company-overview"`
+- Render function: loading paragraph for `InProgress`/`Executing`; parses result JSON and renders `CompanyOverviewCard` (or error paragraph) when `Complete`
+
+#### `components/Providers.tsx` (modified)
+
+Add `CompanyOverviewToolRenderer` to the `renderToolCalls` array alongside the existing `StockDataToolRenderer`:
+
+```typescript
+renderToolCalls={[StockDataToolRenderer, CompanyOverviewToolRenderer]}
+```
+
+---
+
+### Acceptance Criteria (Phase 3)
+
+- [x] `npm install` completes without errors (no new packages expected — same deps as Phase 2)
+- [x] Asking "get overview of Apple" renders the info card in the chat (not raw JSON or plain text)
+- [x] Info card shows all fields: company name, ticker, overview, CEO, founded, headquarters, website, employees
+- [x] Info card background matches the dark app theme (no white box)
+- [x] While the tool is executing, a loading indicator is shown
+- [x] Asking for an unrecognised company renders an error message, not a broken card
+- [x] Stock price chart (Phase 2) continues to work alongside the overview card (no regression)
