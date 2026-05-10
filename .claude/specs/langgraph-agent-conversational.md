@@ -315,9 +315,9 @@ Issues encountered during Phase 1 bring-up and their resolutions:
 
 ### Acceptance Criteria (Phase 1)
 
-- [ ] `uv sync` completes without errors
-- [ ] `uv run langgraph dev` starts without errors and the `/docs` endpoint is reachable
-- [ ] A prompt like `"get stock price for apple"` returns the 12 monthly data points for Apple
-- [ ] Company name matching is case-insensitive (`Apple`, `apple`, `AAPL`, `aapl` all resolve)
-- [ ] `.env` is not tracked by git; `.env.example` is
-- [ ] `uv.lock` and `.python-version` are tracked by git
+- [x] `uv sync` completes without errors
+- [x] `uv run langgraph dev` starts without errors and the `/docs` endpoint is reachable
+- [x] A prompt like `"get stock price for apple"` returns the 12 monthly data points for Apple
+- [x] Company name matching is case-insensitive (`Apple`, `apple`, `AAPL`, `aapl` all resolve)
+- [x] `.env` is not tracked by git; `.env.example` is
+- [x] `uv.lock` and `.python-version` are tracked by git

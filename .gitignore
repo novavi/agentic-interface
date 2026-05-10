@@ -17,6 +17,7 @@ frontend/build/
 frontend/coverage/
 frontend/.vercel/
 frontend/.env*
+!frontend/.env.local.example
 frontend/next-env.d.ts
 frontend/*.tsbuildinfo
 

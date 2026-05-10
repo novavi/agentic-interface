@@ -1,8 +1,19 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #030712;
+  --foreground: #f9fafb;
+
+  /* CopilotKit dark theme */
+  --copilot-kit-background-color: #111827;
+  --copilot-kit-secondary-color: #1f2937;
+  --copilot-kit-primary-color: #6366f1;
+  --copilot-kit-contrast-color: #f9fafb;
+  --copilot-kit-response-button-color: #374151;
+  --copilot-kit-response-button-background-color: #1f2937;
+  --copilot-kit-scrollbar-color: #374151;
+  --copilot-kit-separator-color: #1f2937;
+  --copilot-kit-muted-color: #6b7280;
 }
 
 @theme inline {
@@ -10,13 +21,6 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {
