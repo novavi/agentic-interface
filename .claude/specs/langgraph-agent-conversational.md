@@ -2,6 +2,7 @@
 
 ## Status
 Phase 1: Implemented
+Phase 2: Implemented
 
 ## Overview
 
@@ -26,14 +27,17 @@ Future CopilotKit/Next.js frontend wiring is a separate plan.
 
 ```
 agent-convo/
-├── pyproject.toml       # project metadata and dependencies
-├── uv.lock              # committed lockfile
-├── .python-version      # pins Python version (3.14) for uv
-├── langgraph.json       # LangGraph CLI config — points to graph entrypoint
-├── .env.example         # committed placeholder template
-├── .env                 # real secrets — gitignored
-├── agent.py             # LangGraph graph definition and entrypoint
-└── mcp_server.py        # MCP server (stdio transport) with get-stock-data tool
+├── pyproject.toml           # project metadata and dependencies
+├── uv.lock                  # committed lockfile
+├── .python-version          # pins Python version (3.14) for uv
+├── langgraph.json           # LangGraph CLI config — points to graph entrypoint
+├── .env.example             # committed placeholder template
+├── .env                     # real secrets — gitignored
+├── agent.py                 # LangGraph graph definition and entrypoint
+├── mcp_server.py            # MCP server (stdio transport) with get-stock-data tool
+└── mock_data/
+    ├── __init__.py          # marks directory as a Python package (empty, committed)
+    └── stock_prices.py      # MONTHS, STOCK_DATA, ALIASES constants
 ```
 
 ---
@@ -104,55 +108,40 @@ OPENAI_MODEL=gpt-4o-mini
 
 Not committed (see `.gitignore` section). Developer copies `.env.example` → `.env` and fills in real values.
 
+#### `mock_data/stock_prices.py`
+
+Contains the three data constants imported by `mcp_server.py`:
+
+- `MONTHS` — list of 12 `YYYY-MM` strings spanning Jun 2025 – May 2026
+- `STOCK_DATA` — dict keyed by lowercase company name with `ticker`, `company`, and `prices` fields for each of the Magnificent 7
+- `ALIASES` — dict mapping ticker symbols and alternate names (e.g. `"aapl"`, `"alphabet"`, `"fb"`) to canonical `STOCK_DATA` keys
+
+| Company | Aliases accepted | Price range (fictional) |
+|---|---|---|
+| Apple | `apple`, `aapl` | $195 – $219 |
+| Microsoft | `microsoft`, `msft` | $415 – $457 |
+| Google / Alphabet | `google`, `alphabet`, `googl` | $175 – $196 |
+| Amazon | `amazon`, `amzn` | $190 – $216 |
+| Meta | `meta`, `facebook`, `fb` | $545 – $592 |
+| Tesla | `tesla`, `tsla` | $238 – $276 |
+| Nvidia | `nvidia`, `nvda` | $875 – $1145 |
+
+#### `mock_data/__init__.py`
+
+Empty file. Marks `mock_data/` as an importable Python package, enabling `from mock_data.stock_prices import ...` in `mcp_server.py`. Committed to the repo.
+
 #### `mcp_server.py`
 
 Defines the MCP server using the `mcp` SDK with stdio transport. Contains:
 
-1. **Mock data store** — a dict keyed by lowercase company name (and common aliases), with 12 monthly price data points spanning June 2025 – May 2026:
-
-   | Company | Aliases accepted | Price range (fictional) |
-   |---|---|---|
-   | Apple | `apple`, `aapl` | $195 – $219 |
-   | Microsoft | `microsoft`, `msft` | $415 – $457 |
-   | Google / Alphabet | `google`, `alphabet`, `googl` | $175 – $196 |
-   | Amazon | `amazon`, `amzn` | $190 – $216 |
-   | Meta | `meta`, `facebook`, `fb` | $545 – $592 |
-   | Tesla | `tesla`, `tsla` | $238 – $276 |
-   | Nvidia | `nvidia`, `nvda` | $875 – $1145 |
-
-   **Full mock data (12 monthly points, Jun 2025 – May 2026):**
-
-   ```
-   Apple:     195.42, 198.17, 201.53, 197.88, 204.21, 209.67,
-              213.44, 208.92, 211.35, 215.78, 212.44, 218.93
-
-   Microsoft: 415.20, 421.85, 418.37, 425.62, 431.44, 438.71,
-              445.23, 440.88, 448.15, 452.37, 449.92, 457.11
-
-   Google:    175.34, 178.92, 176.45, 181.23, 184.67, 188.91,
-              191.45, 187.23, 190.56, 193.78, 191.22, 196.44
-
-   Amazon:    190.45, 194.23, 197.88, 193.44, 199.67, 205.23,
-              210.88, 206.34, 209.77, 213.45, 210.88, 216.33
-
-   Meta:      545.33, 552.18, 558.77, 549.22, 562.88, 571.45,
-              579.33, 567.88, 575.22, 583.44, 578.92, 592.11
-
-   Tesla:     245.67, 238.44, 251.23, 243.88, 258.44, 265.23,
-              271.88, 255.44, 262.77, 275.33, 259.88, 268.44
-
-   Nvidia:    875.44, 912.33, 948.77, 921.44, 977.88, 1023.45,
-              1067.22, 1034.88, 1078.33, 1112.44, 1089.77, 1145.22
-   ```
-
-2. **`get-stock-data` tool** — registered MCP tool that:
+1. **`get-stock-data` tool** — registered MCP tool that:
    - Takes one argument: `company_name: str`
    - Normalises input to lowercase, strips whitespace
-   - Looks up against the alias map (case-insensitive)
-   - Returns a structured response: company name, ticker, and the 12 monthly data points as a list of `{ "month": "YYYY-MM", "price": float }` objects
-   - Returns a clear error string if the company is not found, listing valid options
+   - Looks up against `ALIASES` then `STOCK_DATA` from `mock_data.stock_prices`
+   - Returns a JSON string (see Phase 2 for shape) on success
+   - Returns `{ "error": "..." }` JSON if the company is not found
 
-3. **Server entry point** — starts the MCP server on `stdio` transport when run as `__main__`
+2. **Server entry point** — starts the MCP server on `stdio` transport when run as `__main__`
 
 #### `agent.py`
 
@@ -198,15 +187,16 @@ frontend/build/
 frontend/coverage/
 frontend/.vercel/
 frontend/.env*
+!frontend/.env.local.example
 frontend/next-env.d.ts
 frontend/*.tsbuildinfo
 
 # ── agent-convo/ (Python / LangGraph) ─────────────────────────────────────
 agent-convo/.env
 agent-convo/.venv/
-agent-convo/__pycache__/
-agent-convo/*.pyc
-agent-convo/*.pyo
+agent-convo/**/__pycache__/
+agent-convo/**/*.pyc
+agent-convo/**/*.pyo
 agent-convo/.ruff_cache/
 agent-convo/.langgraph_api/
 ```
@@ -214,7 +204,7 @@ agent-convo/.langgraph_api/
 Notable decisions:
 - `agent-convo/.env` is ignored; `agent-convo/.env.example` is committed
 - `agent-convo/.langgraph_api/` — created by `langgraph dev` as a local persistence store (Python pickle files holding dev-session checkpoints and thread state); ephemeral, binary, never committed
-- `frontend/.env*` broadly ignores all env files in the frontend (Next.js convention); no `.env.example` exists there
+- `frontend/.env*` broadly ignores all env files in the frontend; `!frontend/.env.local.example` negation allows the committed template through
 - `uv.lock` and `.python-version` are committed (not ignored)
 
 ---
@@ -321,3 +311,94 @@ Issues encountered during Phase 1 bring-up and their resolutions:
 - [x] Company name matching is case-insensitive (`Apple`, `apple`, `AAPL`, `aapl` all resolve)
 - [x] `.env` is not tracked by git; `.env.example` is
 - [x] `uv.lock` and `.python-version` are tracked by git
+
+---
+
+## Phase 2: Structured JSON tool output
+
+### Goals
+
+- Change `get-stock-data` to return a JSON string instead of formatted plain text
+- Design the JSON shape around Highcharts requirements, so a future frontend chart renderer can consume it directly with minimal transformation
+- Include a minimal `summary` field for the LLM — deliberately omitting data frequency and actual prices so it cannot drift out of sync with the structured data
+- Extract mock data into a dedicated `mock_data/` package to separate data from logic
+- Keep the LLM working correctly — LLMs handle JSON tool results well and will summarise naturally from the `summary` field
+
+Files changed:
+- `mock_data/__init__.py` — new empty file; marks `mock_data/` as an importable Python package
+- `mock_data/stock_prices.py` — new file; contains `MONTHS`, `STOCK_DATA`, and `ALIASES` extracted from `mcp_server.py`
+- `mcp_server.py` — imports from `mock_data.stock_prices`; data definitions removed; return value changed to JSON
+
+`agent.py` and all other files are unaffected.
+
+---
+
+### JSON Output Shape
+
+```json
+{
+  "company": "Apple Inc.",
+  "ticker": "AAPL",
+  "currency": "USD",
+  "summary": "Apple Inc. (AAPL)\nClosing prices (Jun 2025 – May 2026)",
+  "data": [
+    { "month": "2025-06", "price": 195.42 },
+    { "month": "2025-07", "price": 198.17 },
+    ...
+  ]
+}
+```
+
+Field rationale:
+
+| Field | Purpose |
+|---|---|
+| `company` | Full company name — used as chart title / series name |
+| `ticker` | Ticker symbol — displayed alongside company name in chart header |
+| `currency` | Currency code — used to prefix the Highcharts Y-axis label (`$` for `USD`) without hardcoding it in the frontend component |
+| `summary` | Minimal human-readable label for the LLM: `<company> (<ticker>)\nClosing prices (<period>)`. Deliberately omits data frequency and actual prices to avoid drifting out of sync with the `data` array if the structure changes. The date range is derived dynamically from `MONTHS[0]` and `MONTHS[-1]`, so it stays correct if the period is extended. |
+| `data[].month` | `YYYY-MM` string — human-readable for the LLM; converted to `Date.UTC(year, month-1, 1)` on the frontend for a Highcharts `xAxis.type: "datetime"` series |
+| `data[].price` | Monthly closing price as a float |
+
+The `data` array maps directly to a Highcharts series after a one-line transform on the frontend:
+
+```js
+data.map(({ month, price }) => {
+  const [y, m] = month.split("-").map(Number);
+  return [Date.UTC(y, m - 1, 1), price];
+})
+```
+
+---
+
+### Error Case
+
+The not-found error is also returned as JSON for consistency, so the frontend can handle both success and error responses with a single type check:
+
+```json
+{ "error": "Company 'Foo' not found. Valid options: amazon, apple, google, meta, microsoft, nvidia, tesla" }
+```
+
+The LLM receives this JSON string and will relay the error naturally in its response.
+
+---
+
+### `mcp_server.py` Changes
+
+- Add `import json` and `from datetime import datetime`
+- Import `ALIASES`, `MONTHS`, `STOCK_DATA` from `mock_data.stock_prices`; remove inline data definitions
+- Replace the formatted f-string return with `json.dumps(...)` of the structured dict including `summary`
+- Replace the plain-text error return with `json.dumps({"error": ...})`
+- `summary` value is built dynamically from `MONTHS[0]` and `MONTHS[-1]` via `datetime.strptime` — stays correct if the period is extended
+- Tool signature and docstring unchanged
+
+---
+
+### Acceptance Criteria (Phase 2)
+
+- [x] `get-stock-data` returns a valid JSON string for all seven companies and all aliases
+- [x] Returned JSON contains `company`, `ticker`, `currency`, `summary`, and `data` fields
+- [x] `data` contains exactly 12 objects, each with `month` (`YYYY-MM`) and `price` (float)
+- [x] `summary` is of the form `<Company> (<TICKER>)\nClosing prices (<Mon YYYY> – <Mon YYYY>)`
+- [ ] Not-found errors return `{ "error": "..." }` JSON
+- [x] LLM still produces a coherent natural-language response when asked about stock prices (no regression from the format change)

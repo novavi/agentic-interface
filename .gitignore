@@ -25,8 +25,8 @@ frontend/*.tsbuildinfo
 # ── agent-convo/ (Python / LangGraph) ─────────────────────────────────────
 agent-convo/.env
 agent-convo/.venv/
-agent-convo/__pycache__/
-agent-convo/*.pyc
-agent-convo/*.pyo
+agent-convo/**/__pycache__/
+agent-convo/**/*.pyc
+agent-convo/**/*.pyo
 agent-convo/.ruff_cache/
 agent-convo/.langgraph_api/
