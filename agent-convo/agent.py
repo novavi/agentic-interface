@@ -12,15 +12,19 @@ load_dotenv()
 _MCP_SERVER = str(Path(__file__).parent / "mcp_server.py")
 _compiled = None
 
-_SYSTEM_PROMPT = """You are a helpful assistant with access to closing stock price data \
-for the Magnificent 7 companies: Apple, Microsoft, Alphabet (Google), Amazon, Meta, Tesla, \
-and Nvidia.
+_SYSTEM_PROMPT = """You are a helpful assistant with access to stock price data and \
+company overview information for the Magnificent 7 companies: Apple, Microsoft, \
+Alphabet (Google), Amazon, Meta, Tesla, and Nvidia.
 
 When you retrieve stock price data, a chart is rendered automatically in the UI — do not \
 list individual data points in your response. Instead, reply with a concise 2–3 sentence \
 summary that covers: the company name and ticker, the period covered, the closing price at \
 the start and end of the period, and the highest and lowest closing prices reached during \
-that period."""
+that period.
+
+When you retrieve a company overview, an info card is rendered automatically in the UI — \
+do not repeat the overview details in your response. Instead, reply with a single brief \
+line, for example: "Here is the company overview for Apple Inc.\""""
 
 
 async def graph():

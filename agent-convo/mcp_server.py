@@ -4,6 +4,7 @@ from datetime import datetime
 
 from mcp.server.fastmcp import FastMCP
 
+from mock_data.company_overview import COMPANY_OVERVIEW
 from mock_data.stock_prices import ALIASES, MONTHS, STOCK_DATA
 
 # Proof-of-concept: for simplicity the MCP server is co-located in this project and
@@ -66,6 +67,27 @@ def get_stock_data(company_name: str) -> str:
             {"month": month, "price": price}
             for month, price in zip(MONTHS, entry["prices"])
         ],
+    })
+
+
+@mcp.tool(name="get-company-overview")
+def get_company_overview(company_name: str) -> str:
+    """Return a structured company overview for a Magnificent 7 company.
+
+    Args:
+        company_name: Company name or ticker symbol (e.g. 'Apple', 'AAPL', 'Nvidia', 'NVDA')
+    """
+    canonical = _resolve_company(company_name)
+    if canonical is None:
+        valid = ", ".join(sorted(STOCK_DATA))
+        return json.dumps({"error": f"Company '{company_name}' not found. Valid options: {valid}"})
+
+    entry = STOCK_DATA[canonical]
+    overview = COMPANY_OVERVIEW[canonical]
+    return json.dumps({
+        "company": entry["company"],
+        "ticker": entry["ticker"],
+        **overview,
     })
 
 

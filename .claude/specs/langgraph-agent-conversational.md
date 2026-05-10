@@ -4,6 +4,7 @@
 Phase 1: Implemented
 Phase 2: Implemented
 Phase 3: Implemented
+Phase 4: Implemented
 
 ## Overview
 
@@ -535,3 +536,128 @@ entry = STOCK_DATA[canonical]
 - [x] Partial company names resolve correctly (e.g. `"Nvidia Corp"`, `"Meta Platforms"`)
 - [x] Unrecognisable input still returns the `{ "error": "..." }` JSON
 - [x] `FUZZY_CUTOFF = 0.6` is defined as a named constant
+
+---
+
+## Phase 4: Company overview MCP tool
+
+### Goals
+
+- Add a `get-company-overview` MCP tool to `mcp_server.py`
+- Create `mock_data/company_overview.py` with placeholder data for all seven Magnificent 7 companies (to be populated with real values by the developer)
+- Reuse the existing `_resolve_company` fuzzy matching for consistent name resolution
+- Update `_SYSTEM_PROMPT` in `agent.py` to instruct the agent to give a brief one-line acknowledgement when an overview is retrieved (the info card renders all details in the UI)
+
+Files changed:
+- `mock_data/company_overview.py` — new file; `COMPANY_OVERVIEW` dict with placeholder values
+- `mcp_server.py` — imports `COMPANY_OVERVIEW`; new `get-company-overview` tool registered
+- `agent.py` — `_SYSTEM_PROMPT` updated to cover overview response behaviour
+
+---
+
+### `mock_data/company_overview.py`
+
+A new data module following the same pattern as `stock_prices.py`: a single `COMPANY_OVERVIEW` dict keyed by the same lowercase canonical company names used in `STOCK_DATA`.
+
+Fields per company:
+
+| Field | Type | Description |
+|---|---|---|
+| `overview` | `str` | 2–3 sentence business description |
+| `ceo` | `str` | Current CEO name |
+| `founded` | `str` | Founding year |
+| `headquarters` | `str` | City, State/Country |
+| `website` | `str` | Official website URL |
+| `employees` | `str` | Approximate headcount |
+
+All fields are strings. `founded` uses a human-readable date string (e.g. `"Apr 1, 1976"`), and `employees` uses a numeric string (e.g. `"166000"`). Real data has been populated for all seven companies.
+
+Structure:
+
+```python
+COMPANY_OVERVIEW = {
+    "apple": {
+        "overview": "XXX",
+        "ceo": "XXX",
+        "founded": "XXX",
+        "headquarters": "XXX",
+        "website": "XXX",
+        "employees": "XXX",
+    },
+    "microsoft": { ... },  # same fields
+    "google":    { ... },
+    "amazon":    { ... },
+    "meta":      { ... },
+    "tesla":     { ... },
+    "nvidia":    { ... },
+}
+```
+
+`company` and `ticker` are **not** stored here — they are injected at return time from `STOCK_DATA` (which already holds them), avoiding data duplication.
+
+---
+
+### `mcp_server.py` Changes
+
+- Import `COMPANY_OVERVIEW` from `mock_data.company_overview`
+- Register a new `@mcp.tool(name="get-company-overview")` function:
+  - Argument: `company_name: str`
+  - Resolves via `_resolve_company` (same three-stage fuzzy lookup as `get-stock-data`)
+  - On match: builds the JSON response by merging `company` and `ticker` from `STOCK_DATA[canonical]` with all fields from `COMPANY_OVERVIEW[canonical]`
+  - On no match: returns `json.dumps({"error": f"Company '{company_name}' not found. Valid options: ..."})` — same error pattern as `get-stock-data`
+
+---
+
+### JSON Output Shape (`get-company-overview`)
+
+```json
+{
+  "company": "Apple Inc.",
+  "ticker": "AAPL",
+  "overview": "XXX",
+  "ceo": "XXX",
+  "founded": "XXX",
+  "headquarters": "XXX",
+  "website": "XXX",
+  "employees": "XXX"
+}
+```
+
+`company` and `ticker` are sourced from `STOCK_DATA[canonical]` so the info card header stays consistent with the stock chart header without duplicating the values in `COMPANY_OVERVIEW`.
+
+Error case (same shape as `get-stock-data`):
+
+```json
+{ "error": "Company 'Foo' not found. Valid options: amazon, apple, google, meta, microsoft, nvidia, tesla" }
+```
+
+---
+
+### `agent.py` — `_SYSTEM_PROMPT` Update
+
+The existing prompt covers stock price behaviour. Add a third paragraph for company overview:
+
+```
+When you retrieve a company overview, an info card is rendered automatically in the UI — \
+do not repeat the overview details in your response. Instead, reply with a single brief \
+line, for example: "Here is the company overview for Apple Inc."
+```
+
+Also update the first sentence to mention both data sources:
+
+```
+You are a helpful assistant with access to stock price data and company overview \
+information for the Magnificent 7 companies: Apple, Microsoft, Alphabet (Google), Amazon, \
+Meta, Tesla, and Nvidia.
+```
+
+---
+
+### Acceptance Criteria (Phase 4)
+
+- [ ] `get-company-overview` returns valid JSON for all seven companies and all existing aliases/fuzzy inputs
+- [ ] Returned JSON contains `company`, `ticker`, `overview`, `ceo`, `founded`, `headquarters`, `website`, and `employees` fields
+- [ ] `company` and `ticker` values match those returned by `get-stock-data` for the same company
+- [ ] Not-found input returns `{ "error": "..." }` JSON (same shape as `get-stock-data` error)
+- [ ] Agent responds with a single brief line (e.g. "Here is the company overview for Apple Inc.") rather than repeating the overview fields
+- [ ] All existing `get-stock-data` behaviour is unaffected (no regression)
