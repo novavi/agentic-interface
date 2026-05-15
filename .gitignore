@@ -9,6 +9,11 @@ yarn-error.log*
 zz/
 TODO.txt
 
+# Belt-and-braces: exclude all .env* files everywhere; keep committed example templates
+.env*
+!.env.example
+!.env.local.example
+
 # ── frontend/ (Next.js) ────────────────────────────────────────────────────
 frontend/node_modules/
 frontend/.pnp
@@ -31,3 +36,12 @@ agent-convo/**/*.pyc
 agent-convo/**/*.pyo
 agent-convo/.ruff_cache/
 agent-convo/.langgraph_api/
+
+# ── agent-auto/ (Python / LangGraph) ──────────────────────────────────────
+agent-auto/.env
+agent-auto/.venv/
+agent-auto/**/__pycache__/
+agent-auto/**/*.pyc
+agent-auto/**/*.pyo
+agent-auto/.ruff_cache/
+agent-auto/.langgraph_api/
