@@ -60,7 +60,7 @@ LangGraph persists state only when a node **returns** — not mid-execution. Thi
 
 | Node | LLM prompt (no-op pattern) | Other work |
 |---|---|---|
-| `router_node` | No LLM call | Checks last message for "start workflow" (case-insensitive); handles empty messages defensively |
+| `router_node` | No LLM call | Checks last message for `WORKFLOW_TRIGGER_MESSAGE` (case-insensitive); handles both empty messages and multimodal content-block format defensively |
 | `step_1_node` | "You are executing Step 1 of the AutoWorkflow pipeline. Acknowledge that you are processing this step in one sentence." | Sleep, record timestamps, update completed_steps |
 | `step_2_node` | Same pattern, Step 2 | Sleep, timestamps, completed_steps |
 | `step_3_node` | Same pattern, Step 3 | Sleep, timestamps, completed_steps |
@@ -97,11 +97,14 @@ Each LLM call uses `ChatOpenAI` with model from `OPENAI_MODEL` env var. The resp
 
 > **Note on mid-node start timestamps:** Since LangGraph only persists state on node return, the `started_at` timestamp is recorded in-memory and written to state in the same return dict as `completed_at`. Both timestamps appear in state simultaneously when the node completes. If the future frontend needs to observe a node "starting" in real time via polling, nodes can be split into two sub-nodes (start + end) — intentionally deferred.
 
-### Constant (top of `agent.py`)
+### Constants (top of `agent.py`)
 
 ```python
-STEP_DELAY_SECONDS = 5
+SIMULATED_STEP_DELAY_SECONDS = 5
+WORKFLOW_TRIGGER_MESSAGE = "start workflow"
 ```
+
+`SIMULATED_STEP_DELAY_SECONDS` makes clear the delay is artificial. `WORKFLOW_TRIGGER_MESSAGE` is used in both the trigger check and the help message returned to the user, keeping them in sync.
 
 ### Edges
 
@@ -197,7 +200,11 @@ In the Graph view input panel, submit:
 
 The full state wrapper (`messages: [...]`) is required — the Studio appends the submitted JSON to the messages array, so a bare `{"role": "user", "content": "..."}` would result in an empty messages list hitting `router_node`.
 
-**Chat view:** Enabled by the use of `MessagesState`. Send `start workflow` as a plain message.
+**Triggering the workflow from Chat view:**
+
+Send `start workflow` as a plain message. The Chat view is enabled by the use of `MessagesState`.
+
+Note: the Chat view wraps message content as a list of content blocks (`[{"type": "text", "text": "..."}]`) rather than a plain string. `router_node` handles both formats — if `content` is a list it extracts and joins the `text` fields before checking for `WORKFLOW_TRIGGER_MESSAGE`.
 
 ---
 

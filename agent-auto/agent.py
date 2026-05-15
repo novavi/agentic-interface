@@ -10,7 +10,8 @@ from langchain_core.messages import AIMessage
 from langchain_openai import ChatOpenAI
 from langgraph.graph import END, START, MessagesState, StateGraph
 
-STEP_DELAY_SECONDS = 5
+SIMULATED_STEP_DELAY_SECONDS = 5
+WORKFLOW_TRIGGER_MESSAGE = "start workflow"
 
 logger = logging.getLogger("agent_auto")
 logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -42,12 +43,20 @@ async def graph():
     async def router_node(state: WorkflowState) -> dict:
         messages = state.get("messages") or []
         last = messages[-1] if messages else None
-        content = getattr(last, "content", "") or ""
-        if "start workflow" in content.lower():
+        raw = getattr(last, "content", "") or ""
+        if isinstance(raw, list):
+            # Chat view sends content as a list of content blocks: [{"type": "text", "text": "..."}]
+            content = " ".join(
+                block.get("text", "") if isinstance(block, dict) else str(block)
+                for block in raw
+            )
+        else:
+            content = raw
+        if WORKFLOW_TRIGGER_MESSAGE in content.lower():
             return {"status": "running"}
         return {
             "status": "idle",
-            "messages": [AIMessage(content="Send 'start workflow' to begin the AutoWorkflow pipeline.")],
+            "messages": [AIMessage(content=f"Send '{WORKFLOW_TRIGGER_MESSAGE}' to begin the AutoWorkflow pipeline.")],
         }
 
     def route_from_router(state: WorkflowState) -> str:
@@ -62,7 +71,7 @@ async def graph():
         llm_content = response.content
         logger.info('[LLM]   %-15s "%s"', name, llm_content)
 
-        await asyncio.sleep(STEP_DELAY_SECONDS)
+        await asyncio.sleep(SIMULATED_STEP_DELAY_SECONDS)
 
         completed_at = _now()
         logger.info("[END]   %-15s %s", name, completed_at)
@@ -120,7 +129,7 @@ async def graph():
         llm_content = response.content
         logger.info('[LLM]   %-15s "%s"', "Decision Step", llm_content)
 
-        await asyncio.sleep(STEP_DELAY_SECONDS)
+        await asyncio.sleep(SIMULATED_STEP_DELAY_SECONDS)
 
         completed_at = _now()
         logger.info("[END]   %-15s %s — branch: %s", "Decision Step", completed_at, decision)
