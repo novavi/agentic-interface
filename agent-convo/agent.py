@@ -2,23 +2,30 @@ import os
 import sys
 import re
 import uuid
+import json
+import logging
 from pathlib import Path
 from typing import Optional
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain.agents import create_agent
+from langchain_core.runnables import RunnableConfig
 from langgraph.graph import StateGraph, MessagesState, START, END
+from langgraph.prebuilt import ToolNode
 from langgraph.types import interrupt, Command
-from langchain_core.messages import AIMessage, SystemMessage, ToolMessage
+from langchain_core.messages import AIMessage, SystemMessage
+from copilotkit.langgraph import copilotkit_emit_message
 
 load_dotenv()
 
 _MCP_SERVER = str(Path(__file__).parent / "mcp_server.py")
 _compiled = None   # inner create_agent graph
 _wrapper = None    # outer HITL wrapper graph (returned by graph())
-_tool_map: dict = {}
 _model = None
 
 _SYSTEM_PROMPT = """You are a helpful assistant with access to stock price data and \
@@ -78,17 +85,17 @@ def interrupt_node(state: HITLState) -> Command:
             {"id": "get-company-overview", "label": "Company Overview Data", "enabled": True},
         ],
     })
+    if isinstance(resume, str):
+        resume = json.loads(resume)
     return Command(
         update={"interrupt_result": resume},
-        goto="respond_node" if resume["action"] == "reject" else "conditional_tool_node",
+        goto="respond_node" if resume["action"] == "reject" else "inject_tool_calls_node",
     )
 
 
-async def conditional_tool_node(state: HITLState) -> Command:
+def inject_tool_calls_node(state: HITLState) -> Command:
     company = state["company_name"]
     enabled = set(state["interrupt_result"]["enabled_tools"])
-    new_messages = []
-
     tool_calls = []
     if "get-stock-data" in enabled:
         tool_calls.append({
@@ -104,20 +111,30 @@ async def conditional_tool_node(state: HITLState) -> Command:
             "id": str(uuid.uuid4()),
             "type": "tool_call",
         })
-
-    new_messages.append(AIMessage(content="", tool_calls=tool_calls))
-
     for tc in tool_calls:
-        result = await _tool_map[tc["name"]].ainvoke(tc["args"])
-        new_messages.append(ToolMessage(content=str(result), tool_call_id=tc["id"], name=tc["name"]))
-
+        logger.info("[HITL] inject_tool_calls_node: name=%s id=%s", tc["name"], tc["id"])
     return Command(
-        update={"messages": new_messages},
-        goto="respond_node",
+        update={"messages": [AIMessage(content="", tool_calls=tool_calls)]},
+        goto="tools_node",
     )
 
 
-async def respond_node(state: HITLState) -> dict:
+async def respond_node(state: HITLState, config: RunnableConfig) -> dict:
+    logger.info("[HITL] respond_node: %d messages in state", len(state["messages"]))
+    for msg in state["messages"]:
+        msg_type = getattr(msg, "type", "?")
+        if msg_type == "ai" and getattr(msg, "tool_calls", None):
+            for tc in msg.tool_calls:
+                logger.info("[HITL]   AIMessage tool_call: name=%s id=%s", tc["name"], tc["id"])
+        elif msg_type == "tool":
+            logger.info(
+                "[HITL]   ToolMessage: tool_call_id=%s name=%s content_type=%s content_preview=%s",
+                getattr(msg, "tool_call_id", "?"),
+                getattr(msg, "name", "?"),
+                type(msg.content).__name__,
+                repr(msg.content)[:120],
+            )
+
     result = state.get("interrupt_result") or {}
 
     if result.get("action") == "reject":
@@ -126,18 +143,21 @@ async def respond_node(state: HITLState) -> dict:
             f"Understood — I won't retrieve any information for {company}. "
             "Let me know if there's anything else I can help with."
         )
+        await copilotkit_emit_message(config, msg)
         return {"messages": [AIMessage(content=msg)]}
 
-    # Direct LLM call with no tools bound — model can only generate text, not call more tools
-    response = await _model.ainvoke(
-        [SystemMessage(content=_SYSTEM_PROMPT)] + state["messages"]
-    )
-    return {"messages": [response]}
+    response_text = ""
+    async for chunk in _model.astream(
+        [SystemMessage(content=_SYSTEM_PROMPT)] + state["messages"],
+        config=config,
+    ):
+        response_text += chunk.content or ""
+    return {"messages": [AIMessage(content=response_text)]}
 
 
 async def graph():
     """Async factory — initialised once, reused for the lifetime of the server process."""
-    global _compiled, _wrapper, _tool_map, _model
+    global _compiled, _wrapper, _model
     if _wrapper is not None:
         return _wrapper
 
@@ -155,7 +175,6 @@ async def graph():
         }
     )
     tools = await client.get_tools()
-    _tool_map = {t.name: t for t in tools}
 
     _model = ChatOpenAI(model=os.environ.get("OPENAI_MODEL", "gpt-4o-mini"))
     _compiled = create_agent(_model, tools, system_prompt=_SYSTEM_PROMPT)
@@ -163,11 +182,13 @@ async def graph():
     builder = StateGraph(HITLState)
     builder.add_node("route_node", route_node)
     builder.add_node("interrupt_node", interrupt_node)
-    builder.add_node("conditional_tool_node", conditional_tool_node)
+    builder.add_node("inject_tool_calls_node", inject_tool_calls_node)
+    builder.add_node("tools_node", ToolNode(tools))
     builder.add_node("respond_node", respond_node)
     builder.add_node("agent_subgraph", _compiled)
 
     builder.add_edge(START, "route_node")
+    builder.add_edge("tools_node", "respond_node")
     builder.add_edge("respond_node", END)
     builder.add_edge("agent_subgraph", END)
 

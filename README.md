@@ -27,7 +27,7 @@ A chat UI built with Next.js and CopilotKit, connecting to the Agent - Conversat
 
 ```bash
 cd frontend
-cp .env.local.example .env.local   # already pre-filled with localhost default
+cp .env.local.example .env.local    # already pre-filled with localhost default
 npm install
 npm run dev                         # starts on http://localhost:3000
 ```
