@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { CopilotChat } from "@copilotkit/react-core/v2";
 
+const DEFAULT_AGENT_ID = process.env.NEXT_PUBLIC_DEFAULT_CONVERSATIONAL_AGENT ?? "agent_convo_basic";
 const THREAD_ID_KEY = "agentic-interface-conversational-threadid";
 
 export default function Home() {
@@ -43,7 +44,7 @@ export default function Home() {
         <main className="flex-1 min-h-0 flex flex-col">
           <CopilotChat
             className="h-full"
-            agentId="agent"
+            agentId={DEFAULT_AGENT_ID}
             threadId={threadId}
             labels={{
               welcomeMessageText:

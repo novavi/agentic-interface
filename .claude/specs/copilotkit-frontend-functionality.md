@@ -3,6 +3,7 @@
 ## Status
 Phase 1: Implemented
 Phase 2: Implemented
+Phase 3: Implemented
 
 ## Overview
 
@@ -341,3 +342,96 @@ In the Phase 1 implementation, `<CopilotKit>` was gated behind the null-check in
 - [x] `agentId="agent"` is set on `<CopilotChat>` in `page.tsx`, not on the provider
 - [x] Stock price chart and company overview card tool renderers continue to work (no regression)
 - [x] A future page can be added with its own `agentId` and `threadId` without touching `Providers.tsx`
+
+---
+
+## Phase 3: Configurable agent in frontend and graphId tidy-up
+
+### Status
+Implemented.
+
+### Goals
+
+- **G1 (implemented):** Rename all LangGraph graph IDs to use underscore-delimited names that are valid as variable identifiers, and add a `_basic` / `_example` suffix so future graphs in the same agent folder have a clear naming pattern.
+- **G2 (implemented):** Register both agents in the CopilotKit runtime, and replace the hardcoded `agentId` in `<CopilotChat>` with a value read from an environment variable, so the frontend can be pointed at either agent without a code change.
+
+---
+
+### G1: graphId tidy-up (retrospective)
+
+The following renames were applied:
+
+| Location | Before | After |
+|---|---|---|
+| `agent-convo/langgraph.json` graph key | `"agent"` | `"agent_convo_basic"` |
+| `agent-auto/langgraph.json` graph key | `"auto"` | `"agent_auto_example"` |
+| `frontend/app/api/copilotkit/route.ts` agents key | `agent:` | `agent_convo_basic:` |
+| `frontend/app/api/copilotkit/route.ts` `graphId` | `"agent"` | `"agent_convo_basic"` |
+| `frontend/app/page.tsx` `agentId` prop | `"agent"` | `"agent_convo_basic"` |
+
+**Naming convention rationale:** Underscore delimiters produce valid Python/JS identifiers, which avoids quoting requirements if graph IDs are ever used as variable names or dict keys. Suffixes (`_basic`, `_example`) leave room for additional named graphs within the same agent folder in future.
+
+---
+
+### G2: Configurable agentId via environment variable
+
+#### Background
+
+Both agents are registered in the CopilotKit runtime in `route.ts`. `NEXT_PUBLIC_DEFAULT_CONVERSATIONAL_AGENT` controls which registered agent the `<CopilotChat>` UI in `page.tsx` connects to. Switching agents requires only an env var change and a frontend restart — no code changes.
+
+`page.tsx` is a `"use client"` component, so the env var must be prefixed with `NEXT_PUBLIC_` to be accessible client-side. The same var is also readable server-side in `route.ts` if needed in future.
+
+#### Files changed
+
+| File | Change |
+|---|---|
+| `frontend/.env.local.example` | Added `LANGGRAPH_AGENT_AUTO_URL=http://localhost:2025` and `NEXT_PUBLIC_DEFAULT_CONVERSATIONAL_AGENT=agent_convo_basic` |
+| `frontend/.env.local` | Same as above, plus a commented-out `# NEXT_PUBLIC_DEFAULT_CONVERSATIONAL_AGENT=agent_auto_example` for easy switching |
+| `frontend/app/api/copilotkit/route.ts` | Both agents registered with their respective URL env vars; no dynamic key |
+| `frontend/app/page.tsx` | `DEFAULT_AGENT_ID` const reads env var; passed as `agentId` prop on `<CopilotChat>` |
+
+#### `route.ts`
+
+Both agents are always registered. The env var is only used in `page.tsx` — there is no dynamic key in `route.ts`:
+
+```typescript
+const runtime = new CopilotRuntime({
+  agents: {
+    agent_convo_basic: new LangGraphAgent({
+      deploymentUrl: (process.env.LANGGRAPH_AGENT_CONVO_URL ?? "http://localhost:2024").trim(),
+      graphId: "agent_convo_basic",
+    }),
+    agent_auto_example: new LangGraphAgent({
+      deploymentUrl: (process.env.LANGGRAPH_AGENT_AUTO_URL ?? "http://localhost:2025").trim(),
+      graphId: "agent_auto_example",
+    }),
+  },
+});
+```
+
+#### `page.tsx`
+
+```typescript
+const DEFAULT_AGENT_ID = process.env.NEXT_PUBLIC_DEFAULT_CONVERSATIONAL_AGENT ?? "agent_convo_basic";
+```
+
+Passed as `agentId={DEFAULT_AGENT_ID}` on `<CopilotChat>`. The fallback ensures the frontend still works if the env var is accidentally omitted.
+
+---
+
+### Acceptance Criteria (Phase 3)
+
+#### G1
+- [x] `agent-convo/langgraph.json` graph key is `"agent_convo_basic"`
+- [x] `agent-auto/langgraph.json` graph key is `"agent_auto_example"`
+- [x] `route.ts` registers both agents with their correct graph IDs
+- [x] `page.tsx` `agentId` prop driven by `DEFAULT_AGENT_ID` constant
+
+#### G2
+- [x] `LANGGRAPH_AGENT_AUTO_URL=http://localhost:2025` present in `.env.local.example` and `.env.local`
+- [x] `NEXT_PUBLIC_DEFAULT_CONVERSATIONAL_AGENT=agent_convo_basic` present in `.env.local.example` and `.env.local`
+- [x] `.env.local` includes commented-out `agent_auto_example` value for easy switching
+- [x] `route.ts` always registers both agents; no dynamic key computation
+- [x] `page.tsx` reads env var for `agentId`; falls back to `"agent_convo_basic"` if unset
+- [x] Changing the env var value (and restarting the frontend) routes the chat to the other agent without any code change
+- [x] Frontend chat continues to work with `agent_convo_basic` (no regression)

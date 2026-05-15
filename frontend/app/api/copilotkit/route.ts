@@ -6,15 +6,15 @@ import {
 import { LangGraphAgent } from "@copilotkit/runtime/langgraph";
 import { NextRequest } from "next/server";
 
-const agentUrl = (
-  process.env.LANGGRAPH_AGENT_CONVO_URL ?? "http://localhost:2024"
-).trim();
-
 const runtime = new CopilotRuntime({
   agents: {
-    agent: new LangGraphAgent({
-      deploymentUrl: agentUrl,
-      graphId: "agent",
+    agent_convo_basic: new LangGraphAgent({
+      deploymentUrl: (process.env.LANGGRAPH_AGENT_CONVO_URL ?? "http://localhost:2024").trim(),
+      graphId: "agent_convo_basic",
+    }),
+    agent_auto_example: new LangGraphAgent({
+      deploymentUrl: (process.env.LANGGRAPH_AGENT_AUTO_URL ?? "http://localhost:2025").trim(),
+      graphId: "agent_auto_example",
     }),
   },
 });
