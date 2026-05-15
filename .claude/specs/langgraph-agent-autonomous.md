@@ -100,7 +100,7 @@ Each LLM call uses `ChatOpenAI` with model from `OPENAI_MODEL` env var. The resp
 ### Constants (top of `agent.py`)
 
 ```python
-SIMULATED_STEP_DELAY_SECONDS = 5
+SIMULATED_STEP_DELAY_SECONDS = 2.5
 WORKFLOW_TRIGGER_MESSAGE = "start workflow"
 ```
 

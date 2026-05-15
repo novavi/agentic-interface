@@ -10,7 +10,7 @@ from langchain_core.messages import AIMessage
 from langchain_openai import ChatOpenAI
 from langgraph.graph import END, START, MessagesState, StateGraph
 
-SIMULATED_STEP_DELAY_SECONDS = 5
+SIMULATED_STEP_DELAY_SECONDS = 2.5
 WORKFLOW_TRIGGER_MESSAGE = "start workflow"
 
 logger = logging.getLogger("agent_auto")
