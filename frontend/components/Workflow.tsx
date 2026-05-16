@@ -77,6 +77,7 @@ export function Workflow() {
           <Button
             size="sm"
             variant={activeTab === "graph" ? "secondary" : "ghost"}
+            className="cursor-pointer"
             onClick={() => setActiveTab("graph")}
           >
             Graph
@@ -84,6 +85,7 @@ export function Workflow() {
           <Button
             size="sm"
             variant={activeTab === "raw" ? "secondary" : "ghost"}
+            className="cursor-pointer"
             onClick={() => setActiveTab("raw")}
           >
             Raw

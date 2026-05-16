@@ -188,7 +188,7 @@ The Workflow panel keeps the workflow selector and Start Workflow button at the 
 - **Graph tab** (default): renders `WorkflowVisualizer` for the currently selected workflow. Visible at all times, including before any workflow has been started.
 - **Raw tab**: renders `WorkflowRawView` (Run ID, Status, Messages, State). Content is meaningful only after a workflow has been triggered; an empty-state message is shown before the first run.
 
-The tab switcher will use the existing `Button` component (or minimal styled tab buttons) consistent with the dark theme in place. No new UI library component is needed.
+The tab switcher will use the existing `Button` component (or minimal styled tab buttons) consistent with the dark theme in place. No new UI library component is needed. Both tab buttons carry `className="cursor-pointer"` so hovering shows the pointer hand cursor.
 
 ---
 
@@ -344,26 +344,24 @@ There is no visibility into what message triggered the run, making it harder to 
 
 #### Change
 
-In `frontend/app/api/copilotkit/route.ts`, clone the request before passing it to `handleRequest`, then log the messages array after the response is returned:
+In `frontend/app/api/copilotkit/route.ts`, clone the request (as `reqClone`) before passing it to `handleRequest`, then pretty-print the full request body after the response is returned:
 
 ```typescript
 export const POST = async (req: NextRequest) => {
-  const cloned = req.clone();
+  const reqClone = req.clone();
   const { handleRequest } = copilotRuntimeNextJSAppRouterEndpoint({ … });
   const response = await handleRequest(req);
   try {
-    const body = await cloned.json();
-    if (Array.isArray(body.messages) && body.messages.length > 0) {
-      console.log(JSON.stringify(body.messages));
-    }
-  } catch {
-    // body not parseable as JSON (e.g. Connect protocol framing) — skip
+    const body = await reqClone.json();
+    console.log(JSON.stringify(body, undefined, 2));
+  } catch (err) {
+    console.error("[copilotkit] failed to parse request body:", err);
   }
   return response;
 };
 ```
 
-**Caveat**: CopilotKit v2 uses the Connect protocol (`application/connect+json`), which may prefix the body with a 5-byte binary frame header. If `cloned.json()` fails consistently, we will need to skip the first 5 bytes of the body (`ArrayBuffer` slice) and parse the remainder. This will be verified during implementation.
+**Body shape**: The Connect protocol body is valid JSON (not binary-framed as originally suspected). Each request has the shape `{ method, params: { agentId }, body: { threadId, messages, … } }`. Logging the full body is more useful than extracting `messages` alone.
 
 ---
 

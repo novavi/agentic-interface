@@ -25,7 +25,7 @@ const runtime = new CopilotRuntime({
 });
 
 export const POST = async (req: NextRequest) => {
-  const cloned = req.clone();
+  const reqClone = req.clone();
   const { handleRequest } = copilotRuntimeNextJSAppRouterEndpoint({
     runtime,
     serviceAdapter: new ExperimentalEmptyAdapter(),
@@ -33,12 +33,10 @@ export const POST = async (req: NextRequest) => {
   });
   const response = await handleRequest(req);
   try {
-    const body = await cloned.json();
-    if (Array.isArray(body.messages) && body.messages.length > 0) {
-      console.log(JSON.stringify(body.messages));
-    }
-  } catch {
-    // body not parseable as JSON (Connect protocol framing may differ)
+    const body = await reqClone.json();
+    console.log(JSON.stringify(body, undefined, 2));
+  } catch (err) {
+    console.error("[copilotkit] failed to parse request body:", err);
   }
   return response;
 };
