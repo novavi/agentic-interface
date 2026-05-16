@@ -17,3 +17,15 @@
 
 - Never run any npm command without first asking for explicit permission.
 - For package installation, version upgrades, uninstallation, and script execution: provide the exact command(s) for the user to run, then wait for the user to confirm the commands have been run and share any relevant output before proceeding.
+
+## Python Operations
+
+- Never run any `uv`, `pip`, or `python` command without first asking for explicit permission.
+- For dependency installation (`uv add`, `uv sync`, `pip install`), environment management, and script execution (`uv run`, `python`): provide the exact command(s) for the user to run, then wait for the user to confirm the commands have been run and share any relevant output before proceeding.
+
+## Plan Files
+
+- Plan files (`.claude/specs/*.md`) are the authoritative record of what was designed and why. Treat each completed phase's content as a locked historical record — never remove, restructure, or reword existing sections when adding new content.
+- Amendments to a completed phase must be minimal, surgical, and purposeful (e.g. correcting a factual error or updating a stale value). If an amendment is needed, make only the targeted change and leave surrounding content intact.
+- When extending a plan with a new phase, add new sections below the existing content. Do not reorganise the existing sections to accommodate the new phase.
+- If existing plan content needs significant restructuring, ask the user before making changes.
