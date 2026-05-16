@@ -380,6 +380,213 @@ export const POST = async (req: NextRequest) => {
 
 ## Phase 3 — Live Execution Overlay
 
-*(To be specified. Deferred from Phase 1.)*
+### Overview
 
-Phase 3 will extend `WorkflowVisualizer` to reflect the running execution state: highlighting the currently active node, visually marking completed nodes, and animating the traversed edges in real time as the workflow executes via CopilotKit.
+Extend `WorkflowVisualizer` to display live execution state when a workflow is running. Phase 3 is split into two sub-phases:
+
+- **Phase 3a (R1–R5):** Wire up the streaming infrastructure; display raw stream events in a `<pre>` element while a run is in progress. Proves the end-to-end plumbing before any graph rendering work.
+- **Phase 3b (R6):** Replace the raw event display with the existing ReactFlow graph plus a live node-status overlay. Deferred until Phase 3a is verified end-to-end.
+
+---
+
+### Architecture
+
+```
+Workflow.tsx
+  → passes { graphId, currentThreadId, isRunning } to WorkflowVisualizer
+
+WorkflowVisualizer.tsx
+  → if currentThreadId !== null: streaming mode (Phase 3a: raw events; Phase 3b: graph overlay)
+  → else: graph definition mode (existing Phase 1 behaviour)
+
+Browser EventSource
+  ← GET /api/agents/{graphId}/stream?threadId={threadId}    ← new Next.js SSE proxy route
+       → @langchain/langgraph-sdk Client (server-side)
+         → client.runs.list(threadId)       ← find the runId created by CopilotKit
+         → client.runs.joinStream(threadId, runId, { streamMode: "updates" })
+           → proxy events as SSE to browser
+```
+
+**Why `joinStream`, not `runs.stream`:** `Client.runs.stream()` creates a new run on the thread. We need to subscribe to the run CopilotKit already created. `Client.runs.joinStream(threadId, runId)` does exactly this — it streams events from an existing run without disturbing it. The `runId` is obtained by calling `client.runs.list(threadId)` after CopilotKit starts the run.
+
+**Why a Next.js proxy route rather than calling the LangGraph server directly from the browser:** The LangGraph dev server URL is a server-side secret (env var without `NEXT_PUBLIC_`). Keeping the LangGraph connection on the server side preserves the existing security boundary.
+
+---
+
+### Packages Required
+
+`@langchain/langgraph-sdk` v1.9.1 is already installed as a transitive dependency of `@langchain/langgraph` but is not listed in `package.json`. It should be added as an explicit direct dependency so it is not silently removed if the transitive dependency chain changes.
+
+```bash
+npm install @langchain/langgraph-sdk
+```
+
+---
+
+### R1 — Preserve graph definition display when not running
+
+No code change. The existing graph-definition mode continues to work. The new streaming mode only activates when `currentThreadId !== null`. Ensuring this condition is correct is the responsibility of the new `WorkflowVisualizer` mode-switch logic in R4.
+
+---
+
+### R2 — Evolve `WorkflowVisualizer` props
+
+**Current interface:**
+```typescript
+interface WorkflowVisualizerProps {
+  graphId: string;
+}
+```
+
+**New interface:**
+```typescript
+interface WorkflowVisualizerProps {
+  graphId: string;
+  currentThreadId: string | null;
+  isRunning: boolean;
+}
+```
+
+`currentThreadId` is the primary mode switch: non-null → streaming mode, null → graph definition mode.
+
+`isRunning` is passed for display purposes (e.g., showing a "live" indicator while the run is in progress vs. showing a "completed" indicator after it ends) but does not control the SSE connection lifecycle — the SSE stream closing naturally signals run completion.
+
+**`Workflow.tsx` change:** Pass the new props:
+```tsx
+<WorkflowVisualizer
+  graphId={selectedGraphId}
+  currentThreadId={currentThreadId}
+  isRunning={agent.isRunning}
+/>
+```
+
+---
+
+### R3 — New SSE proxy route: GET /api/agents/[graphId]/stream
+
+**File:** `frontend/app/api/agents/[graphId]/stream/route.ts`
+
+No `export const dynamic` needed — Next.js route handlers are not cached by default (confirmed from Next.js docs; `force-dynamic` is not a documented value and is unnecessary here).
+
+**Query parameter:** `threadId` (required string).
+
+**Logic:**
+
+1. Resolve `graphId` via `AGENT_CONFIG` — return 400 if unknown.
+2. Read `threadId` from `req.nextUrl.searchParams` — return 400 if absent.
+3. Construct `Client({ apiUrl: agentConfig.url, apiKey: null })` from `@langchain/langgraph-sdk`. Passing `apiKey: null` disables the automatic env-var API-key lookup; no key is required for a local `langgraph dev` server.
+4. **Find the run (race-condition window):** LangGraph creates the run in response to CopilotKit's request, which arrives in parallel with our SSE connection. The SSE connection from the browser may arrive before the run exists. Retry `client.runs.list(threadId, { limit: 1 })` up to 10 times with 100 ms delay (≤ 1 s total). Take `runs[0]` — any run on the thread regardless of status (since every `currentThreadId` is a fresh UUID, there is at most one run). If no run is found after all retries, return 404.
+5. Open `client.runs.joinStream(threadId, runId, { streamMode: "updates", cancelOnDisconnect: false, signal: req.signal })`. `cancelOnDisconnect: false` because CopilotKit is managing the run independently — a browser disconnect from the proxy should not cancel the run. `signal: req.signal` stops the proxy from forwarding events when the browser disconnects, without affecting the run itself.
+6. Proxy the async generator as SSE. Each chunk is formatted as `data: {json}\n\n`. Send a synthetic terminal event `data: {"event":"stream_end"}\n\n` after the generator closes, then close the `ReadableStream` controller. This terminal event lets the browser side close the `EventSource` cleanly rather than triggering auto-reconnect.
+7. Return `new Response(readableStream, { headers })` with `Content-Type: text/event-stream`, `Cache-Control: no-cache`, `Connection: keep-alive`.
+
+**Config helper (analogous to `getAgentGraphUrl`):** Add to `frontend/config/backend-config.ts`:
+```typescript
+export const getAgentStreamUrl = (graphId: string, threadId: string) =>
+  `/api/agents/${graphId}/stream?threadId=${encodeURIComponent(threadId)}`;
+```
+
+---
+
+### R4 — `WorkflowVisualizer` mode-switch logic
+
+```
+useEffect on currentThreadId:
+  if null → no-op (component stays in graph definition mode)
+  if non-null:
+    open EventSource pointing to getAgentStreamUrl(graphId, currentThreadId)
+    on message → accumulate parsed events into state
+    on "stream_end" event → close EventSource, set connection state = "closed"
+    on error (unexpected disconnect) → set connection state = "error"
+  cleanup:
+    close EventSource if open
+```
+
+Connection state is tracked as `"open" | "closed" | "error" | null` (null = no thread, graph definition shown). The three non-null states drive the badge:
+- `"open"` — `● Live` in green; stream active
+- `"closed"` — `✓ Complete` in grey; run finished normally
+- `"error"` — `✗ Error` in red; unexpected stream failure
+
+The `EventSource` is closed explicitly on the `"stream_end"` event because the browser's `EventSource` implementation auto-reconnects after a server-side close. Sending an explicit terminal event and calling `es.close()` prevents spurious reconnect attempts after a run completes normally.
+
+---
+
+### R5 — Raw stream events display (Phase 3a content)
+
+When `currentThreadId !== null`, render a dark scrollable `<pre>` block in place of the ReactFlow canvas. Behaviour:
+
+- Auto-scrolls to the bottom as new events arrive.
+- Each event rendered as pretty-printed JSON (`JSON.stringify(event, null, 2)`), separated by blank lines.
+- Header line shows connection state badge driven by `connectionState`, not `isRunning`: `● Live` (green, `connectionState === "open"`), `✓ Complete` (grey, `"closed"`), `✗ Error` (red, `"error"`).
+- Placeholder text while waiting for the first event: `"Waiting for stream…"`.
+- Retains all events after the run completes (does not auto-clear) until the user switches graph or starts a new run (either action sets `currentThreadId = null` which clears event state and returns to graph definition mode).
+
+---
+
+### R6 — ReactFlow live overlay (Phase 3b — deferred)
+
+*Deferred until R1–R5 are verified end-to-end.*
+
+Replace the `<pre>` event display with the existing ReactFlow graph (Phase 1 layout, unchanged) plus per-node status colour overlay. Node state is derived from the `"updates"` stream events received in R4–R5:
+
+- Each `updates` event has shape `{ event: "updates", data: { [nodeName]: stateUpdate } }`. Every key is a node that just completed a step.
+- A second stream mode `"checkpoints"` (added alongside `"updates"`) provides `next: string[]` on each checkpoint event, indicating which nodes are queued to run next. This gives the "active" (about-to-run) state without needing task-level events.
+
+Node visual states:
+- **Pending** (not yet seen in any event) — default React Flow node style
+- **Active** (appeared in a checkpoint `next` array but not yet in an `updates` event) — amber/yellow highlight
+- **Completed** (appeared in an `updates` event) — green highlight
+- **Error** (if the stream closes with an error and the node was active) — red highlight
+
+Implementation approach:
+- Add `streamMode: ["updates", "checkpoints"]` to the `joinStream` call in the SSE route (replaces `"updates"` only).
+- Track `completedNodes: Set<string>` and `activeNodes: Set<string>` as state derived from the accumulated events.
+- Use ReactFlow custom node types to support per-node background colour. The existing `"input"` / `"output"` / `"default"` built-in types do not support arbitrary background colours; a thin custom wrapper is needed.
+- The graph definition fetch (existing Phase 1 code) still runs on mount to supply node positions. The live status overlay is an additive layer on top.
+
+---
+
+### Open Questions
+
+**OQ1 — Phase 4 scope (resolved):** Phase 4 will cover watching a run that was triggered in a previous session. `joinStream` is agnostic to run age — it replays historical events for completed runs and delivers live events for runs still in progress. The Phase 3 streaming infrastructure is therefore fully reusable for Phase 4. The only Phase 4 work is the storage layer in `Workflow.tsx`: write `{ graphId, threadId }` to `localStorage` when a run starts, restore on mount, clear on graph-change. Estimated ~10–20 lines. No new routes or SDK usage required.
+
+**OQ2 — Post-completion behaviour (resolved):** Sticky view confirmed. Stream events are retained after the run completes and the visualizer stays in streaming mode. The view resets to graph definition only when the user changes the selected graph or starts a new run (both set `currentThreadId = null`).
+
+**OQ3 — `streamMode` staging (resolved):** `streamMode: "updates"` only for Phase 3a. `"checkpoints"` is added alongside `"updates"` in Phase 3b when the active-node highlight requires it. The SSE route change at that point is a one-line addition to the `joinStream` call.
+
+---
+
+### Files to Create / Modify
+
+| File | Action |
+|------|--------|
+| `frontend/app/api/agents/[graphId]/stream/route.ts` | Create — SSE proxy route |
+| `frontend/components/WorkflowVisualizer.tsx` | Modify — add streaming mode (R2, R4, R5) |
+| `frontend/components/Workflow.tsx` | Modify — pass `currentThreadId`, `isRunning` to WorkflowVisualizer (R2) |
+| `frontend/config/backend-config.ts` | Modify — add `getAgentStreamUrl` helper (R3) |
+
+---
+
+### Decisions
+
+**D1 — `Client.runs.joinStream` over `RemoteGraph.streamEvents`:** `RemoteGraph.streamEvents()` creates a new run. `Client.runs.joinStream()` attaches to an existing run. Since CopilotKit creates the run, we must join it rather than start a second one.
+
+**D2 — EventSource with explicit terminal event:** The browser `EventSource` auto-reconnects after a server-side close. We prevent this by sending a `stream_end` sentinel event and calling `es.close()` in the client handler, rather than relying on the connection closing cleanly.
+
+**D3 — Run discovery via `runs.list` with retry:** Since every `currentThreadId` is a fresh UUID per run, `client.runs.list(threadId)` returns at most one run. The retry loop (up to 1 s) covers the race window between CopilotKit creating the run and our SSE route querying for it.
+
+**D4 — `currentThreadId` as mode switch, `connectionState` as display driver:** `currentThreadId` being non-null is sufficient to enter streaming mode. The badge (`● Live` / `✓ Complete` / `✗ Error`) is driven by `connectionState` derived from the SSE stream lifecycle, not by `isRunning`. `isRunning` is accepted as a prop for interface completeness and future use in Phase 3b but is not used in Phase 3a display logic.
+
+---
+
+### Status
+
+| Item | Status |
+|------|--------|
+| OQ1 (Phase 4 scope) | Resolved — localStorage persistence; no new routes needed |
+| OQ2 (post-completion behaviour) | Resolved — sticky view confirmed |
+| OQ3 (streamMode staging) | Resolved — "updates" only in Phase 3a, add "checkpoints" in Phase 3b |
+| Phase 3a investigation | Complete |
+| D1–D4 | Resolved |
+| R1–R5 implementation | Complete |
+| R6 implementation | Not started (deferred) |

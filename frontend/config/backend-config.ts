@@ -32,3 +32,6 @@ export const AGENT_CONFIG: AgentConfigEntry[] = [
 ];
 
 export const getAgentGraphUrl = (graphId: string) => `/api/agents/${graphId}/graph`;
+
+export const getAgentStreamUrl = (graphId: string, threadId: string) =>
+  `/api/agents/${graphId}/stream?threadId=${encodeURIComponent(threadId)}`;

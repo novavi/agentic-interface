@@ -100,7 +100,11 @@ export function Workflow() {
       </div>
       <div className="flex-1 min-h-0 px-6 pb-6">
         {activeTab === "graph" ? (
-          <WorkflowVisualizer graphId={selectedGraphId} />
+          <WorkflowVisualizer
+            graphId={selectedGraphId}
+            currentThreadId={currentThreadId}
+            isRunning={agent.isRunning}
+          />
         ) : (
           <WorkflowRawView agent={agent} />
         )}
