@@ -7,7 +7,7 @@ yarn-error.log*
 .pnpm-debug.log*
 *.bak
 zz/
-TODO.txt
+TODO*.txt
 
 # Belt-and-braces: exclude all .env* files everywhere; keep committed example templates
 .env*

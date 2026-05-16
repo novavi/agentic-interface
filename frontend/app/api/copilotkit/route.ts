@@ -12,9 +12,9 @@ const runtime = new CopilotRuntime({
       deploymentUrl: (process.env.LANGGRAPH_AGENT_CONVO_URL ?? "http://localhost:2024").trim(),
       graphId: "agent_convo_basic",
     }),
-    agent_auto_example: new LangGraphAgent({
+    agent_auto_example_1: new LangGraphAgent({
       deploymentUrl: (process.env.LANGGRAPH_AGENT_AUTO_URL ?? "http://localhost:2025").trim(),
-      graphId: "agent_auto_example",
+      graphId: "agent_auto_example_1",
     }),
   },
 });
