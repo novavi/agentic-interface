@@ -1,23 +1,18 @@
 import { RemoteGraph } from "@langchain/langgraph/remote";
 import { type NextRequest } from "next/server";
-
-const DEPLOYMENT_URLS: Record<string, string> = {
-  agent_auto_ex_1: (process.env.LANGGRAPH_AGENT_AUTO_URL ?? "http://localhost:2025").trim(),
-  agent_auto_ex_2: (process.env.LANGGRAPH_AGENT_AUTO_URL ?? "http://localhost:2025").trim(),
-  agent_convo_basic: (process.env.LANGGRAPH_AGENT_CONVO_URL ?? "http://localhost:2024").trim(),
-};
+import { AGENT_CONFIG } from "@/config/backend-config";
 
 export const GET = async (
   _req: NextRequest,
   { params }: { params: Promise<{ graphId: string }> }
 ) => {
   const { graphId } = await params;
-  const url = DEPLOYMENT_URLS[graphId];
-  if (!url) {
+  const agentConfig = AGENT_CONFIG.find((a) => a.graphId === graphId);
+  if (!agentConfig) {
     return Response.json({ error: `Unknown graphId: ${graphId}` }, { status: 400 });
   }
   try {
-    const remoteGraph = new RemoteGraph({ graphId, url });
+    const remoteGraph = new RemoteGraph({ graphId, url: agentConfig.url });
     const graph = await remoteGraph.getGraphAsync({ xray: false });
     return Response.json(graph);
   } catch (err) {

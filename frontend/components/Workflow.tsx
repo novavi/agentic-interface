@@ -4,22 +4,22 @@ import { useState } from "react";
 import { useAgent, useCopilotKit } from "@copilotkit/react-core/v2";
 import { ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import graphsData from "@/data/autonomous-agent-graphs.json";
+import { AGENT_CONFIG } from "@/config/backend-config";
 import { WorkflowRawView } from "@/components/WorkflowRawView";
 import { WorkflowVisualizer } from "@/components/WorkflowVisualizer";
 
-interface AutonomousGraph {
-  graphId: string;
-  name: string;
-  triggerMessage: string;
-}
+const workflowAgents = AGENT_CONFIG.filter((a) => a.isWorkflowGraph);
 
-const graphs = graphsData as AutonomousGraph[];
+const STATUS_LABELS: Record<string, string> = {
+  idle: "Idle",
+  running: "Running…",
+  complete: "Complete",
+};
 
 type Tab = "graph" | "raw";
 
 export function Workflow() {
-  const [selectedGraphId, setSelectedGraphId] = useState<string>(graphs[0].graphId);
+  const [selectedGraphId, setSelectedGraphId] = useState<string>(workflowAgents[0].graphId);
   const [currentThreadId, setCurrentThreadId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>("graph");
 
@@ -32,15 +32,18 @@ export function Workflow() {
   };
 
   const handleStartWorkflow = async () => {
-    const selectedGraph = graphs.find((g) => g.graphId === selectedGraphId)!;
+    const selectedAgent = workflowAgents.find((a) => a.graphId === selectedGraphId)!;
     const newThreadId = crypto.randomUUID();
     setCurrentThreadId(newThreadId);
     agent.threadId = newThreadId;
     agent.setMessages([
-      { id: crypto.randomUUID(), role: "user", content: selectedGraph.triggerMessage },
+      { id: crypto.randomUUID(), role: "user", content: selectedAgent.triggerMessage! },
     ]);
     await copilotkit.runAgent({ agent });
   };
+
+  const rawStatus = agent.state?.status as string | undefined;
+  const statusLabel = rawStatus ? (STATUS_LABELS[rawStatus] ?? rawStatus) : "";
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -54,9 +57,9 @@ export function Workflow() {
               className="h-8 w-auto appearance-none rounded-md border border-gray-700 bg-gray-800 text-sm text-gray-100 px-2.5 pr-7 outline-none focus:border-gray-500 disabled:cursor-not-allowed disabled:opacity-50"
               style={{ colorScheme: "dark" }}
             >
-              {graphs.map((g) => (
-                <option key={g.graphId} value={g.graphId}>
-                  {g.name}
+              {workflowAgents.map((a) => (
+                <option key={a.graphId} value={a.graphId}>
+                  {a.displayName}
                 </option>
               ))}
             </select>
@@ -86,12 +89,18 @@ export function Workflow() {
             Raw
           </Button>
         </div>
+        {currentThreadId && (
+          <div className="flex flex-col gap-1">
+            <p className="font-mono text-xs text-gray-400">Run ID: {currentThreadId}</p>
+            <p className="font-mono text-xs text-gray-400">Status: {statusLabel}</p>
+          </div>
+        )}
       </div>
       <div className="flex-1 min-h-0 px-6 pb-6">
         {activeTab === "graph" ? (
           <WorkflowVisualizer graphId={selectedGraphId} />
         ) : (
-          <WorkflowRawView agent={agent} currentThreadId={currentThreadId} />
+          <WorkflowRawView agent={agent} />
         )}
       </div>
     </div>

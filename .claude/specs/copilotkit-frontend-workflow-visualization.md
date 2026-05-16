@@ -246,8 +246,142 @@ In LangGraph, a node can itself be a compiled `StateGraph` (a "subgraph"). When 
 
 ---
 
-## Phase 2 — Live Execution Overlay
+## Phase 2 — Code Cleanup
+
+### Overview
+
+Four targeted improvements to code organisation, visibility, and maintainability. No new user-facing features beyond the Run ID / Status visibility change in R2.
+
+---
+
+### R1 — Centralise agent config into a shared file
+
+#### Problem
+
+The graphId → LangGraph deployment URL mapping currently exists in two separate route files:
+
+- `frontend/app/api/copilotkit/route.ts` — uses `process.env.LANGGRAPH_AGENT_CONVO_URL` / `LANGGRAPH_AGENT_AUTO_URL` inline in each `LangGraphAgent` constructor
+- `frontend/app/api/agents/[graphId]/graph/route.ts` — duplicates the same mapping in a local `DEPLOYMENT_URLS` constant
+
+Any change to an agent URL or the addition of a new agent must be made in both files.
+
+#### Proposed solution
+
+Create `frontend/config/<name>.ts` containing a single exported constant that maps each `graphId` to its LangGraph deployment URL. Both route files import from it.
+
+The file will also hold any other agent-wide constants (see R3).
+
+**This file is server-side only** — it reads `process.env` values that are not prefixed with `NEXT_PUBLIC_` and will resolve to `undefined` if imported into a client component. It should only be imported from route handlers and other server-side code.
+
+#### Decision
+
+File: `frontend/config/backend-config.ts` — constant: `AGENT_CONFIG` (array of `AgentConfigEntry` objects)
+
+The constant uses an array structure rather than `Record<string, string>`, enabling both iteration (for building the `CopilotRuntime` agents object) and `.find()` lookup (for the graph route handler). Each entry has `graphId`, `url` (server-side), and `isWorkflowGraph: boolean` (distinguishes workflow-capable agents from the conversational agent). Workflow agents additionally carry `displayName` and `triggerMessage` (optional fields, client-safe).
+
+`frontend/app/api/copilotkit/route.ts` builds its `agents` object via a single `Object.fromEntries(AGENT_CONFIG.map(...))` loop, replacing the previous repetitive manual block. A comment directly above the `CopilotRuntime` constructor shows the equivalent expanded form to aid readability.
+
+`frontend/app/api/agents/[graphId]/graph/route.ts` uses `AGENT_CONFIG.find(a => a.graphId === graphId)` (result named `agentConfig`) for the URL lookup, replacing the previous `Record` index access.
+
+---
+
+#### R1b — Consolidate autonomous-agent-graphs.json into AGENT_CONFIG
+
+`frontend/data/autonomous-agent-graphs.json` (subsequently moved to `frontend/config/`) held `graphId`, `name` (display name), and `triggerMessage` for the two autonomous workflow agents. These fields are now absorbed as `displayName` and `triggerMessage` optional fields on the relevant `AGENT_CONFIG` entries, making the JSON file entirely redundant.
+
+**Changes:**
+- `isWorkflowGraph: boolean` and optional `displayName` / `triggerMessage` added to `AgentConfigEntry`; set on all three entries in `AGENT_CONFIG` (`agent_convo_basic` has `isWorkflowGraph: false` and no display/trigger fields)
+- `frontend/config/autonomous-agent-graphs.json` deleted
+- `frontend/components/Workflow.tsx` import updated: JSON import removed, replaced with `AGENT_CONFIG` from `backend-config.ts`; `AutonomousWorkflowGraph` interface removed; `workflowAgents = AGENT_CONFIG.filter((a) => a.isWorkflowGraph)` replaces the previous `graphs` array; `g.name` references updated to `a.displayName`; `triggerMessage` accessed with `!` non-null assertion
+- `frontend/data/` folder deleted (was already empty after the earlier move)
+
+---
+
+### R2 — Move Run ID and Status display to Workflow.tsx
+
+#### Problem
+
+Run ID and Status are currently inside `WorkflowRawView.tsx`, so they disappear when the user switches to the Graph tab.
+
+#### Change
+
+Move the Run ID and Status lines from `WorkflowRawView.tsx` into `Workflow.tsx`, placed between the tab switcher and the tab content area. They are rendered unconditionally regardless of active tab — but are only visible when a `currentThreadId` exists (same guard as before).
+
+`WorkflowRawView.tsx` retains only the Messages and State sections.
+
+---
+
+### R3 — Move Next.js API URL template to config file
+
+#### Problem
+
+The URL template string `` `/api/agents/${graphId}/graph` `` is hardcoded 100+ lines deep inside `WorkflowVisualizer.tsx`. As the number of API calls grows, scattering URL strings across components makes them hard to find and update.
+
+#### Change
+
+Add an exported helper to the config file created in R1:
+
+```typescript
+export const getAgentGraphUrl = (graphId: string) =>
+  `/api/agents/${graphId}/graph`;
+```
+
+`WorkflowVisualizer.tsx` imports and calls `getAgentGraphUrl(graphId)` instead of constructing the string inline. This is a client-safe export (no env vars, just string interpolation).
+
+---
+
+### R4 — Log request messages to the terminal for POST /api/copilotkit
+
+#### Problem
+
+When a workflow is triggered, the only terminal output is:
+
+```
+POST /api/copilotkit 200 in 18.0s
+```
+
+There is no visibility into what message triggered the run, making it harder to trace which workflow was started.
+
+#### Change
+
+In `frontend/app/api/copilotkit/route.ts`, clone the request before passing it to `handleRequest`, then log the messages array after the response is returned:
+
+```typescript
+export const POST = async (req: NextRequest) => {
+  const cloned = req.clone();
+  const { handleRequest } = copilotRuntimeNextJSAppRouterEndpoint({ … });
+  const response = await handleRequest(req);
+  try {
+    const body = await cloned.json();
+    if (Array.isArray(body.messages) && body.messages.length > 0) {
+      console.log(JSON.stringify(body.messages));
+    }
+  } catch {
+    // body not parseable as JSON (e.g. Connect protocol framing) — skip
+  }
+  return response;
+};
+```
+
+**Caveat**: CopilotKit v2 uses the Connect protocol (`application/connect+json`), which may prefix the body with a 5-byte binary frame header. If `cloned.json()` fails consistently, we will need to skip the first 5 bytes of the body (`ArrayBuffer` slice) and parse the remainder. This will be verified during implementation.
+
+---
+
+### Status
+
+| Item | Status |
+|------|--------|
+| OQ1 (config file name) resolved | Resolved — `config/backend-config.ts` / `AGENT_CONFIG` |
+| OQ2 (delete empty data/ folder) resolved | Resolved — yes, delete |
+| R1 implementation | Complete |
+| R2 implementation | Complete |
+| R3 implementation | Complete |
+| R4 implementation | Complete |
+
+---
+
+## Phase 3 — Live Execution Overlay
 
 *(To be specified. Deferred from Phase 1.)*
 
-Phase 2 will extend `WorkflowVisualizer` to reflect the running execution state: highlighting the currently active node, visually marking completed nodes, and animating the traversed edges in real time as the workflow executes via CopilotKit.
+Phase 3 will extend `WorkflowVisualizer` to reflect the running execution state: highlighting the currently active node, visually marking completed nodes, and animating the traversed edges in real time as the workflow executes via CopilotKit.

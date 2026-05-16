@@ -12,6 +12,7 @@ import {
   type Edge,
 } from "@xyflow/react";
 import Dagre from "@dagrejs/dagre";
+import { getAgentGraphUrl } from "@/config/backend-config";
 
 const NODE_WIDTH = 180;
 const NODE_HEIGHT = 40;
@@ -102,7 +103,7 @@ export function WorkflowVisualizer({ graphId }: WorkflowVisualizerProps) {
   useEffect(() => {
     setLoading(true);
     setError(null);
-    fetch(`/api/agents/${graphId}/graph`)
+    fetch(getAgentGraphUrl(graphId))
       .then((res) => {
         if (!res.ok) throw new Error(`Failed to load graph (HTTP ${res.status})`);
         return res.json() as Promise<GraphResponse>;

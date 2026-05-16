@@ -5,29 +5,40 @@ import {
 } from "@copilotkit/runtime";
 import { LangGraphAgent } from "@copilotkit/runtime/langgraph";
 import { NextRequest } from "next/server";
+import { AGENT_CONFIG } from "@/config/backend-config";
 
+// Note: The below logic builds the agents map required by CopilotRuntime. It is equivalent to:
+//   agents: {
+//     myAgentGraph: new LangGraphAgent({
+//       deploymentUrl: "<MY_AGENT_URL>",
+//       graphId: "myAgentGraph",
+//     }),
+//     ...
+//   }
 const runtime = new CopilotRuntime({
-  agents: {
-    agent_convo_basic: new LangGraphAgent({
-      deploymentUrl: (process.env.LANGGRAPH_AGENT_CONVO_URL ?? "http://localhost:2024").trim(),
-      graphId: "agent_convo_basic",
-    }),
-    agent_auto_ex_1: new LangGraphAgent({
-      deploymentUrl: (process.env.LANGGRAPH_AGENT_AUTO_URL ?? "http://localhost:2025").trim(),
-      graphId: "agent_auto_ex_1",
-    }),
-    agent_auto_ex_2: new LangGraphAgent({
-      deploymentUrl: (process.env.LANGGRAPH_AGENT_AUTO_URL ?? "http://localhost:2025").trim(),
-      graphId: "agent_auto_ex_2",
-    }),
-  },
+  agents: Object.fromEntries(
+    AGENT_CONFIG.map(({ graphId, url }) => [
+      graphId,
+      new LangGraphAgent({ deploymentUrl: url, graphId }),
+    ])
+  ),
 });
 
 export const POST = async (req: NextRequest) => {
+  const cloned = req.clone();
   const { handleRequest } = copilotRuntimeNextJSAppRouterEndpoint({
     runtime,
     serviceAdapter: new ExperimentalEmptyAdapter(),
     endpoint: "/api/copilotkit",
   });
-  return handleRequest(req);
+  const response = await handleRequest(req);
+  try {
+    const body = await cloned.json();
+    if (Array.isArray(body.messages) && body.messages.length > 0) {
+      console.log(JSON.stringify(body.messages));
+    }
+  } catch {
+    // body not parseable as JSON (Connect protocol framing may differ)
+  }
+  return response;
 };

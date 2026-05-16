@@ -408,3 +408,9 @@ Both agents share the same `LANGGRAPH_AGENT_AUTO_URL` deployment URL — the Lan
 - [x] Status line is hidden before the first run; shown after the first Start click ✅
 - [x] Status line shows friendly labels: "Idle", "Running…", "Complete" ✅
 - [x] `NEXT_PUBLIC_DEFAULT_AUTONOMOUS_AGENT` is no longer referenced anywhere in the component ✅
+
+---
+
+## Amendment — autonomous-agent-graphs.json removed
+
+`frontend/data/autonomous-agent-graphs.json` was removed as part of Phase 2 (Code Cleanup) of the Workflow Visualization plan (`copilotkit-frontend-workflow-visualization.md`). Its `graphId`, `name` (display name), and `triggerMessage` fields were absorbed into the `AGENT_CONFIG` array in `frontend/config/backend-config.ts` as optional `displayName` and `triggerMessage` fields on the relevant entries. `Workflow.tsx` now imports `AGENT_CONFIG` and `isWorkflowAgent` from `backend-config.ts` in place of the JSON file.
