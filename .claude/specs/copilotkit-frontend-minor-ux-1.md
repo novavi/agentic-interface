@@ -28,7 +28,7 @@ import { Sparkles } from "lucide-react";
 <header className="flex-none h-14 flex items-center px-6 border-b border-gray-800 bg-gray-950">
   <Sparkles className="w-5 h-5 text-amber-400 mr-2 flex-none" />
   <h1 className="text-xl font-semibold text-gray-100">
-    Agentic Interface (Proof of concept)
+    Agentic Interface - Proof of Concept by Derek Novavi
   </h1>
 </header>
 ```

@@ -295,7 +295,7 @@ export default function Home() {
     <div className="flex flex-col h-screen overflow-hidden">
       <header className="flex-none h-14 flex items-center px-6 border-b border-gray-800 bg-gray-950">
         <h1 className="text-lg font-semibold text-gray-100">
-          Agentic Interface (Proof of concept)
+          Agentic Interface - Proof of Concept by Derek Novavi
         </h1>
       </header>
       <div className="flex flex-1 min-h-0">

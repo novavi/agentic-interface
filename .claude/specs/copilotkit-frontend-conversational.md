@@ -127,17 +127,17 @@ Remains a server component. Sets up the dark theme HTML shell and imports `Provi
 Marked `"use client"` (required because `CopilotChat` uses React hooks). Full-page layout using Tailwind flexbox:
 
 ```
-┌─────────────────────────────────────────────┐  ← h-screen, flex-col
-│  Header (flex-none, ~h-14)                  │
-│  "Agentic Interface (Proof of concept)"     │
-├──────────────┬──────────────────────────────┤  ← flex-1, flex-row, min-h-0
-│              │                              │
-│   Sidebar    │      CopilotChat             │
-│ placeholder  │      (flex-1, h-full)        │
-│  (flex-none, │                              │
-│   ~w-64)     │  ← scrollable message area  │
-│              │  ← fixed input at bottom     │
-└──────────────┴──────────────────────────────┘
+┌──────────────────────────────────────────────────────────┐  ← h-screen, flex-col
+│  Header (flex-none, ~h-14)                               │
+│  "Agentic Interface - Proof of Concept by Derek Novavi"  │
+├──────────────┬───────────────────────────────────────────┤  ← flex-1, flex-row, min-h-0
+│              │                                           │
+│   Sidebar    │      CopilotChat                          │
+│ placeholder  │      (flex-1, h-full)                     │
+│  (flex-none, │                                           │
+│   ~w-64)     │  ← scrollable message area                │
+│              │  ← fixed input at bottom                  │
+└──────────────┴───────────────────────────────────────────┘
 ```
 
 Key Tailwind structure:
