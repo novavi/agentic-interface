@@ -1,8 +1,8 @@
 {
   "dependencies": ["."],
   "graphs": {
-    "agent_auto_example_1": "./graphs/agent_auto_example_1.py:graph",
-    "agent_auto_example_2": "./graphs/agent_auto_example_2.py:graph"
+    "agent_auto_ex_1": "./graphs/agent_auto_ex_1.py:graph",
+    "agent_auto_ex_2": "./graphs/agent_auto_ex_2.py:graph"
   },
   "env": ".env"
 }

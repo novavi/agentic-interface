@@ -40,7 +40,7 @@ async def graph():
             return {"status": "running"}
         return {
             "status": "idle",
-            "messages": [AIMessage(content=f"Send '{WORKFLOW_TRIGGER_MESSAGE}' to begin the Trade Matching workflow.")],
+            "messages": [AIMessage(content=f"Send '{WORKFLOW_TRIGGER_MESSAGE}' to begin the Example 2 Workflow.")],
         }
 
     def route_from_router(state: TradeMatchingState) -> str:
@@ -65,7 +65,7 @@ async def graph():
     async def extract_oms_trades_node(state: TradeMatchingState) -> dict:
         key, started, content, completed = await _run_step(
             "Extract OMS Trades",
-            "You are executing the Extract OMS Trades step of the Trade Matching workflow. Acknowledge that you are pulling executed trades and fund allocations from the OMS in one sentence.",
+            "You are executing the Extract OMS Trades step of the Example 2 Workflow. Acknowledge that you are pulling executed trades and fund allocations from the OMS in one sentence.",
         )
         return {
             "messages": [AIMessage(content=content)],
@@ -76,7 +76,7 @@ async def graph():
     async def fetch_ctm_status_node(state: TradeMatchingState) -> dict:
         key, started, content, completed = await _run_step(
             "Fetch CTM Status",
-            "You are executing the Fetch CTM Status step of the Trade Matching workflow. Acknowledge that you are checking whether the broker's trade details have arrived and match in one sentence.",
+            "You are executing the Fetch CTM Status step of the Example 2 Workflow. Acknowledge that you are checking whether the broker's trade details have arrived and match in one sentence.",
         )
         return {
             "messages": [AIMessage(content=content)],
@@ -94,7 +94,7 @@ async def graph():
         response = await llm.ainvoke([{
             "role": "user",
             "content": (
-                f"You are the Match Decision Gateway of the Trade Matching workflow. "
+                f"You are the Match Decision Gateway of the Example 2 Workflow. "
                 f"The system has randomly determined that the trade match status is {match_status}. "
                 "Acknowledge this in one sentence."
             ),
@@ -127,7 +127,7 @@ async def graph():
 
         response = await llm.ainvoke([{
             "role": "user",
-            "content": "You are executing the HITL Manual Fix step of the Trade Matching workflow. Acknowledge that a human analyst is investigating the trade mismatch in one sentence.",
+            "content": "You are executing the HITL Manual Fix step of the Example 2 Workflow. Acknowledge that a human analyst is investigating the trade mismatch in one sentence.",
         }])
         llm_content = response.content
         logger.info('[LLM]   %-25s "%s"', "HITL Manual Fix", llm_content)
@@ -149,7 +149,7 @@ async def graph():
     async def auto_instruct_node(state: TradeMatchingState) -> dict:
         key, started, content, completed = await _run_step(
             "Auto Instruct",
-            "You are executing the Auto Instruct step of the Trade Matching workflow. Acknowledge that the matched trade is being enriched with SSI data and sent for settlement in one sentence.",
+            "You are executing the Auto Instruct step of the Example 2 Workflow. Acknowledge that the matched trade is being enriched with SSI data and sent for settlement in one sentence.",
         )
         return {
             "messages": [AIMessage(content=content)],
@@ -160,9 +160,9 @@ async def graph():
     async def audit_finalize_node(state: TradeMatchingState) -> dict:
         key, started, content, completed = await _run_step(
             "Audit Finalize",
-            "You are executing the Audit Finalize step of the Trade Matching workflow. Acknowledge that the matching event has been logged and the OMS record updated to Ready for Settlement in one sentence.",
+            "You are executing the Audit Finalize step of the Example 2 Workflow. Acknowledge that the matching event has been logged and the OMS record updated to Ready for Settlement in one sentence.",
         )
-        logger.info("Trade Matching workflow complete.")
+        logger.info("Example 2 Workflow complete.")
         return {
             "messages": [AIMessage(content=content)],
             "completed_steps": ["audit_finalize"],

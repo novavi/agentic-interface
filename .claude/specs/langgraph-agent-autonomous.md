@@ -442,3 +442,18 @@ No frontend support for Graph 2 in this plan — that is a separate plan.
 - Real HITL — planned for a dedicated future graph, not an evolution of Graph 2
 - Any changes to `agent-convo/`
 - MCP tools in either graph
+
+---
+
+## Post-Implementation Rename
+
+After Phase 2 was implemented, graph IDs and Python filenames were shortened because the original names were too long to disambiguate in the CopilotKit Inspector agents dropdown:
+
+| Before | After |
+|---|---|
+| `agent_auto_example_1` | `agent_auto_ex_1` |
+| `agent_auto_example_2` | `agent_auto_ex_2` |
+
+Affected files: `langgraph.json` (graph keys and file paths), `graphs/agent_auto_example_1.py` → `graphs/agent_auto_ex_1.py`, `graphs/agent_auto_example_2.py` → `graphs/agent_auto_ex_2.py`. Frontend files (`route.ts`, `autonomous-agent-graphs.json`) updated in the same change.
+
+Plan sections above retain the original names as they were at time of design; the shortened IDs are canonical going forward.

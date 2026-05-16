@@ -21,7 +21,7 @@ export default function Home() {
         <aside className="flex-none w-64 border-r border-gray-800 bg-gray-950">
           <Navbar activeView={view} onViewChange={setView} />
         </aside>
-        <main className="flex-1 min-h-0 flex flex-col">
+        <main className="flex-1 min-w-0 min-h-0 flex flex-col">
           {view === "workflow" ? <Workflow /> : <Conversation />}
         </main>
       </div>

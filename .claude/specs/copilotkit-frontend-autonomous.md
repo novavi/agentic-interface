@@ -60,7 +60,7 @@ No changes needed to `route.ts` — `agent_auto_example` is already registered.
 
 ---
 
-## Phase 1
+## Phase 1 — Run workflow with raw output
 
 ### G1 — LHS Navbar Component
 
@@ -227,7 +227,184 @@ Internal imports between the tool-renderer files (`./CompanyOverviewCard`, `./St
 
 ## Future Enhancements
 
-- **Disable "Start Workflow" button while running**: Read `agent.isRunning` (boolean property on `AbstractAgent`) to disable the button and show a loading/spinner state during execution. Re-enable on completion or error.
 - **Step-by-step visual progress tracker**: Replace the raw JSON state dump with a structured list of steps showing name, status (pending / running / complete), and elapsed time — driven by `completed_steps` and `step_timings`.
 - **Stop / cancel workflow**: Add a "Stop" button calling `agent.abortRun()` to interrupt a running workflow.
 - **Per-run output history**: Retain and display output from multiple previous workflow runs within the same session, rather than overwriting on each trigger.
+
+---
+
+## Phase 2 — Selectable graphs when running workflows
+
+### Status
+Implemented ✅
+
+---
+
+### Goal
+Add graph selection to the Workflow view: a dropdown that lists available autonomous graphs from a data file, with the selected graph passed dynamically to `useAgent`. Simultaneously implement run-state controls (button + dropdown locking while running, a status line, and output clearing on graph switch).
+
+---
+
+### Resolved Questions
+
+1. **Locking during run**: Both the graph dropdown and the "Start Workflow" button are disabled while `agent.isRunning === true`. ✅
+2. **Output clearing on graph switch**: Once a run completes and the dropdown is unlocked, changing the selected graph immediately clears the output area. ✅
+3. **Trigger message per graph**: JSON data file includes a `triggerMessage` field per graph entry, used as the workflow trigger message instead of a hardcoded constant. ✅
+4. **Status line labels**: Raw `agent.state.status` values (`"idle"`, `"running"`, `"complete"`) are mapped to friendly labels in code (`"Idle"`, `"Running…"`, `"Complete"`). Status line is hidden before the first run is initiated. ✅
+
+---
+
+### Data File
+
+**File**: `frontend/data/autonomous-agent-graphs.json`
+
+```json
+[
+  {
+    "graphId": "agent_auto_ex_1",
+    "name": "Example 1 Workflow",
+    "triggerMessage": "start workflow"
+  },
+  {
+    "graphId": "agent_auto_ex_2",
+    "name": "Example 2 Workflow",
+    "triggerMessage": "start workflow"
+  }
+]
+```
+
+**TypeScript interface** (inlined in `Workflow.tsx`):
+```typescript
+interface AutonomousGraph {
+  graphId: string;
+  name: string;
+  triggerMessage: string;
+}
+```
+
+The file is imported directly as a module (`import graphs from "@/data/autonomous-agent-graphs.json"`). No runtime fetch needed. `tsconfig.json` already includes `"resolveJsonModule": true` in Next.js projects by default.
+
+---
+
+### Architecture Notes
+
+#### Dynamic `agentId` in `useAgent`
+`useAgent({ agentId: selectedGraphId })` is called with a state variable. React re-renders will pass the updated value to the hook as the dropdown changes, returning a new `agent` instance bound to the newly selected graph. The previous agent's `messages` and `state` are naturally absent on the new instance; resetting `currentThreadId` to `null` simultaneously ensures the output area disappears immediately rather than showing a momentarily empty panel.
+
+#### Graph switch handler
+```typescript
+const handleGraphChange = (newGraphId: string) => {
+  setSelectedGraphId(newGraphId);
+  setCurrentThreadId(null);
+};
+```
+Disabled while `agent.isRunning` (dropdown is locked), so this handler is only reachable when safe to switch.
+
+#### Trigger message
+```typescript
+const selectedGraph = graphs.find(g => g.graphId === selectedGraphId)!;
+// On Start Workflow click:
+agent.setMessages([{ id: crypto.randomUUID(), role: "user", content: selectedGraph.triggerMessage }]);
+```
+
+#### Status line
+```typescript
+const STATUS_LABELS: Record<string, string> = {
+  idle: "Idle",
+  running: "Running…",
+  complete: "Complete",
+};
+```
+Rendered below the controls row when `currentThreadId` is set. Reads `agent.state?.status` — falls back to an empty string if not yet populated so nothing flickers before the first state event arrives.
+
+#### Env var removal
+`NEXT_PUBLIC_DEFAULT_AUTONOMOUS_AGENT` is removed from both `.env.local` and `.env.local.example`. The default graph is `graphs[0].graphId` — first entry in the JSON file. The constant on line 7 of `Workflow.tsx` (`const AGENT_ID = …`) is also removed.
+
+---
+
+### shadcn Component
+
+`Select` must be installed before implementation:
+```bash
+npx shadcn@latest add select
+```
+
+---
+
+### Files Changed
+
+| File | Action |
+|------|--------|
+| `frontend/data/autonomous-agent-graphs.json` | Create |
+| `frontend/components/Workflow.tsx` | Modify |
+| `frontend/app/api/copilotkit/route.ts` | Modify — add `agent_auto_ex_2` |
+| `frontend/.env.local` | Modify — remove `NEXT_PUBLIC_DEFAULT_AUTONOMOUS_AGENT` |
+| `frontend/.env.local.example` | Modify — remove `NEXT_PUBLIC_DEFAULT_AUTONOMOUS_AGENT` |
+
+---
+
+### G4 — Graph Data File
+
+**Objective**: Create the JSON data file that drives the graph selector dropdown.
+
+**Acceptance criteria**:
+- [x] `frontend/data/autonomous-agent-graphs.json` exists with both graphs listed ✅
+- [x] Each entry has `graphId`, `name`, and `triggerMessage` fields ✅
+- [x] `agent_auto_ex_1` is first in the list (becomes the default selection) ✅
+
+---
+
+### G5 — Register `agent_auto_ex_2` in `route.ts`
+
+**Objective**: Add the Trade Matching graph to the CopilotKit runtime so it can be reached by the frontend.
+
+**Change**:
+```typescript
+agent_auto_ex_2: new LangGraphAgent({
+  deploymentUrl: (process.env.LANGGRAPH_AGENT_AUTO_URL ?? "http://localhost:2025").trim(),
+  graphId: "agent_auto_ex_2",
+}),
+```
+
+Both agents share the same `LANGGRAPH_AGENT_AUTO_URL` deployment URL — the LangGraph server hosts multiple graphs.
+
+**Acceptance criteria**:
+- [x] `agent_auto_ex_2` is registered in `runtime` with the correct `graphId` and `deploymentUrl` ✅
+
+---
+
+### G6 — Workflow Component Updates
+
+**Objective**: Replace the hardcoded agent ID with a data-driven graph selector dropdown; add run-state locking, status line, and output clearing on graph switch.
+
+**State changes**:
+| State variable | Type | Default | Purpose |
+|---|---|---|---|
+| `selectedGraphId` | `string` | `graphs[0].graphId` | Currently selected graph |
+| `currentThreadId` | `string \| null` | `null` | Current run thread (unchanged) |
+
+**Removed**:
+- `const AGENT_ID = process.env.NEXT_PUBLIC_DEFAULT_AUTONOMOUS_AGENT ?? "agent_auto_example"` constant
+- `{ id: crypto.randomUUID(), role: "user", content: "start workflow" }` hardcoded trigger — replaced with `selectedGraph.triggerMessage`
+
+**Controls layout** (single row, left-to-right):
+1. `Select` dropdown — graph selector, disabled while `agent.isRunning`
+2. `Button` — "Start Workflow", disabled while `agent.isRunning`
+
+**Status line**: Rendered immediately below the controls row, visible only when `currentThreadId` is set:
+```tsx
+<p className="text-sm text-gray-400">
+  Status: {STATUS_LABELS[agent.state?.status] ?? agent.state?.status ?? ""}
+</p>
+```
+
+**Acceptance criteria**:
+- [x] Dropdown lists all graphs from `autonomous-agent-graphs.json` with their friendly names ✅
+- [x] Default selection is the first graph in the list ✅
+- [x] Selecting a graph passes its `graphId` to `useAgent` as `agentId` ✅
+- [x] Clicking "Start Workflow" uses the selected graph's `triggerMessage` as the trigger ✅
+- [x] Dropdown and button are both disabled while `agent.isRunning === true` ✅
+- [x] Switching the dropdown (when not running) immediately clears the output area ✅
+- [x] Status line is hidden before the first run; shown after the first Start click ✅
+- [x] Status line shows friendly labels: "Idle", "Running…", "Complete" ✅
+- [x] `NEXT_PUBLIC_DEFAULT_AUTONOMOUS_AGENT` is no longer referenced anywhere in the component ✅

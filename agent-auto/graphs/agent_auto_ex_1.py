@@ -40,7 +40,7 @@ async def graph():
             return {"status": "running"}
         return {
             "status": "idle",
-            "messages": [AIMessage(content=f"Send '{WORKFLOW_TRIGGER_MESSAGE}' to begin the AutoWorkflow pipeline.")],
+            "messages": [AIMessage(content=f"Send '{WORKFLOW_TRIGGER_MESSAGE}' to begin the Example 1 Workflow.")],
         }
 
     def route_from_router(state: WorkflowState) -> str:
@@ -65,7 +65,7 @@ async def graph():
     async def step_1_node(state: WorkflowState) -> dict:
         key, started, content, completed = await _run_step(
             "Step 1",
-            "You are executing Step 1 of the AutoWorkflow pipeline. Acknowledge that you are processing this step in one sentence.",
+            "You are executing Step 1 of the Example 1 Workflow. Acknowledge that you are processing this step in one sentence.",
         )
         return {
             "messages": [AIMessage(content=content)],
@@ -76,7 +76,7 @@ async def graph():
     async def step_2_node(state: WorkflowState) -> dict:
         key, started, content, completed = await _run_step(
             "Step 2",
-            "You are executing Step 2 of the AutoWorkflow pipeline. Acknowledge that you are processing this step in one sentence.",
+            "You are executing Step 2 of the Example 1 Workflow. Acknowledge that you are processing this step in one sentence.",
         )
         return {
             "messages": [AIMessage(content=content)],
@@ -87,7 +87,7 @@ async def graph():
     async def step_3_node(state: WorkflowState) -> dict:
         key, started, content, completed = await _run_step(
             "Step 3",
-            "You are executing Step 3 of the AutoWorkflow pipeline. Acknowledge that you are processing this step in one sentence.",
+            "You are executing Step 3 of the Example 1 Workflow. Acknowledge that you are processing this step in one sentence.",
         )
         return {
             "messages": [AIMessage(content=content)],
@@ -105,7 +105,7 @@ async def graph():
         response = await llm.ainvoke([{
             "role": "user",
             "content": (
-                f"You are the Decision Step of the AutoWorkflow pipeline. "
+                f"You are the Decision Step of the Example 1 Workflow. "
                 f"The workflow has randomly selected branch {decision}. "
                 "Acknowledge this decision in one sentence."
             ),
@@ -134,7 +134,7 @@ async def graph():
     async def step_4a_node(state: WorkflowState) -> dict:
         key, started, content, completed = await _run_step(
             "Step 4a",
-            "You are executing Step 4a (branch A) of the AutoWorkflow pipeline. This is the final step. Acknowledge completion in one sentence.",
+            "You are executing Step 4a (branch A) of the Example 1 Workflow. This is the final step. Acknowledge completion in one sentence.",
         )
         logger.info("Workflow complete.")
         return {
@@ -147,7 +147,7 @@ async def graph():
     async def step_4b_node(state: WorkflowState) -> dict:
         key, started, content, completed = await _run_step(
             "Step 4b",
-            "You are executing Step 4b (branch B) of the AutoWorkflow pipeline. This is the final step. Acknowledge completion in one sentence.",
+            "You are executing Step 4b (branch B) of the Example 1 Workflow. This is the final step. Acknowledge completion in one sentence.",
         )
         logger.info("Workflow complete.")
         return {
