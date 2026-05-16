@@ -2,14 +2,8 @@
 
 import { useState } from "react";
 import { useAgent, useCopilotKit } from "@copilotkit/react-core/v2";
+import { ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import graphsData from "@/data/autonomous-agent-graphs.json";
 
 interface AutonomousGraph {
@@ -57,22 +51,22 @@ export function Workflow() {
   return (
     <div className="flex flex-col h-full p-6 gap-6 overflow-auto">
       <div className="flex items-center gap-3">
-        <Select
-          value={selectedGraphId}
-          onValueChange={handleGraphChange}
-          disabled={agent.isRunning}
-        >
-          <SelectTrigger className="w-56">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
+        <div className="relative">
+          <select
+            value={selectedGraphId}
+            onChange={(e) => handleGraphChange(e.target.value)}
+            disabled={agent.isRunning}
+            className="h-8 w-auto appearance-none rounded-md border border-gray-700 bg-gray-800 text-sm text-gray-100 px-2.5 pr-7 outline-none focus:border-gray-500 disabled:cursor-not-allowed disabled:opacity-50"
+            style={{ colorScheme: "dark" }}
+          >
             {graphs.map((g) => (
-              <SelectItem key={g.graphId} value={g.graphId}>
+              <option key={g.graphId} value={g.graphId}>
                 {g.name}
-              </SelectItem>
+              </option>
             ))}
-          </SelectContent>
-        </Select>
+          </select>
+          <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+        </div>
         <Button
           className="cursor-pointer disabled:pointer-events-auto disabled:cursor-not-allowed"
           onClick={handleStartWorkflow}
