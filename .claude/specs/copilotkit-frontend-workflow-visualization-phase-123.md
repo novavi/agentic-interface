@@ -590,3 +590,104 @@ Implementation approach:
 | D1–D4 | Resolved |
 | R1–R5 implementation | Complete |
 | R6 implementation | Not started (deferred) |
+
+---
+
+## Phase 3c — R5 Replay Fixes
+
+### Overview
+
+Two bugs prevent completed workflow runs from being visible after a browser refresh or tab switch. Both bugs exist in the current Phase 3a code and must be fixed before Phase 3b work begins, since Phase 3b builds on top of this streaming infrastructure.
+
+**Bug 1 — Raw view:** After a browser refresh (or navigating away and back), `WorkflowRawView` shows "No workflow started yet." for a completed run even though the `threadId` is in the URL. Root cause: `agent.threadId` is never set from the URL's `threadId` on restore — it is only set inside `handleStartWorkflow`. CopilotKit therefore never associates the agent with the existing thread and does not replay messages or state.
+
+**Bug 2 — Graph view:** After switching from the Graph tab to the Raw tab and back, `WorkflowVisualizer` shows "Waiting for stream…" instead of the completed run's events. Root cause: `streamEvents` is local state inside `WorkflowVisualizer`; switching to the Raw tab unmounts the component and discards all accumulated events. On remount, the SSE route calls `joinStream` which replays stored update events from the in-memory checkpointer — but the events are re-fetched from scratch every time the component remounts.
+
+**Checkpointer context:** All three agents (`agent_convo_basic`, `agent_auto_ex_1`, `agent_auto_ex_2`) compile their graphs without an explicit checkpointer. `langgraph dev` automatically injects an in-memory `MemorySaver` at runtime, so thread state is available within the same server session. Both fixes rely on this in-memory state being present; neither fix survives a `langgraph dev` restart (same limitation applies today to conversation history replay).
+
+---
+
+### R5c-1 — Raw view: connect agent to existing thread on restore
+
+**File:** `frontend/components/Workflow.tsx`
+
+**Root cause:** `agent.threadId` is only set at line 88 inside `handleStartWorkflow`. When the component loads from a URL containing a `threadId` (browser refresh or direct navigation), `currentThreadId` is correctly restored from `threadIdProp`, but `agent.threadId` is never set, so CopilotKit has no thread context and `agent.messages` / `agent.state` remain empty.
+
+**Fix:** Add a `useEffect` in `Workflow.tsx` that watches `currentThreadId` and — when restoring a completed thread — sets `agent.threadId` and calls `copilotkit.connectAgent({ agent })`:
+
+```tsx
+useEffect(() => {
+  if (!currentThreadId) return;
+
+  // Only call connectAgent for terminal runs. For "running" runs, copilotkit.runAgent()
+  // is already in flight (set before setCurrentThreadId in handleStartWorkflow); calling
+  // connectAgent in parallel would conflict. For absent entries, there is nothing to restore.
+  try {
+    const entries: WorkflowEntry[] = JSON.parse(sessionStorage.getItem(WORKFLOWS_KEY) ?? "[]");
+    const entry = entries.find((w) => w.threadId === currentThreadId);
+    if (!entry || entry.status === "running") return;
+  } catch {
+    return;
+  }
+
+  agent.threadId = currentThreadId;
+  copilotkit.connectAgent({ agent });
+}, [currentThreadId]); // agent and copilotkit are stable references; omitting from deps is intentional
+```
+
+**How this works:** `copilotkit.connectAgent({ agent })` is the CopilotKit v2 method used internally by `CopilotChat` to load thread history. When called, it replays all stored messages and state updates from the thread into the agent object, causing `agent.messages` and `agent.state` to populate exactly as they would for a live run. This is confirmed by the CopilotChat source, which executes the same two-step sequence: `agent.threadId = resolvedThreadId` then `await copilotkit.connectAgent({ agent })`.
+
+**Guard logic:** In `handleStartWorkflow`, the session storage entry with `status: "running"` is written before `setCurrentThreadId(newThreadId)` is called. React state updates are asynchronous — the new `currentThreadId` value only lands in the next render, at which point the useEffect fires. By then, session storage already has `status: "running"` for the new thread, so the guard correctly skips `connectAgent` for fresh runs.
+
+---
+
+### R5c-2 — Graph view: prevent streamEvents loss on tab switch
+
+**File:** `frontend/components/Workflow.tsx`
+
+**Root cause:** In `Workflow.tsx`, the tab content is rendered conditionally:
+
+```tsx
+{activeTab === "graph" ? (
+  <WorkflowVisualizer ... />
+) : (
+  <WorkflowRawView ... />
+)}
+```
+
+Switching to the Raw tab unmounts `WorkflowVisualizer`, discarding its local `streamEvents` and `connectionState` state. When the user switches back to the Graph tab, the component remounts, opens a fresh SSE connection, and `joinStream` replays the stored update events from the in-memory checkpointer — but this re-fetch is unnecessary overhead, and the UI shows "Waiting for stream…" until the first replayed event arrives.
+
+**Fix:** Replace the conditional rendering with CSS-based visibility — both components are always mounted; only one is visible at a time:
+
+```tsx
+<div className={activeTab === "graph" ? "flex-1 min-h-0 px-6 pb-6" : "hidden"}>
+  <WorkflowVisualizer ... />
+</div>
+<div className={activeTab === "raw" ? "flex-1 min-h-0 px-6 pb-6 overflow-auto" : "hidden"}>
+  <WorkflowRawView ... />
+</div>
+```
+
+This preserves all component state across tab switches at the cost of keeping both components mounted. `WorkflowRawView` is cheap (no SSE connection, just renders agent state). `WorkflowVisualizer` already manages an SSE connection and is the more expensive component; it benefits most from staying mounted.
+
+**Refresh path:** On browser refresh with a `threadId` in the URL, `WorkflowVisualizer` mounts once, opens an SSE connection to the stream proxy, and `joinStream` replays the run's stored update events from the in-memory checkpointer. This path is unchanged by this fix and should already work within the same `langgraph dev` session — the fix only addresses the tab-switch case.
+
+---
+
+### Files to Modify
+
+| File | Action |
+|------|--------|
+| `frontend/components/Workflow.tsx` | Add `connectAgent` restore effect (R5c-1); replace conditional rendering with CSS hidden (R5c-2) |
+
+No other files require changes. The SSE route, `WorkflowVisualizer`, and `WorkflowRawView` are unchanged.
+
+---
+
+### Status
+
+| Item | Status |
+|------|--------|
+| Investigation | Complete |
+| R5c-1 implementation | Complete |
+| R5c-2 implementation | Complete |

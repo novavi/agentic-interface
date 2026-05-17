@@ -1,17 +1,26 @@
 "use client";
 
+import { Loader2 } from "lucide-react";
+import type { Message } from "@ag-ui/core";
+
 interface WorkflowRawViewProps {
-  agent: {
-    messages: Array<{ id?: string; role: string; content: unknown }>;
-    state?: Record<string, unknown> | null;
-  };
+  messages: ReadonlyArray<Readonly<Message>>;
+  state?: Record<string, unknown> | null;
+  isLoading?: boolean;
 }
 
-export function WorkflowRawView({ agent }: WorkflowRawViewProps) {
-  const assistantMessages = agent.messages.filter((m) => m.role === "assistant");
-  const hasState = agent.state && Object.keys(agent.state).length > 0;
+export function WorkflowRawView({ messages, state, isLoading }: WorkflowRawViewProps) {
+  const assistantMessages = messages.filter((m) => m.role === "assistant");
+  const hasState = state && Object.keys(state).length > 0;
 
   if (assistantMessages.length === 0 && !hasState) {
+    if (isLoading) {
+      return (
+        <div className="flex items-center justify-center h-full text-sm text-gray-500">
+          <Loader2 className="w-5 h-5 animate-spin" />
+        </div>
+      );
+    }
     return (
       <div className="flex items-center justify-center h-full text-sm text-gray-500">
         No workflow started yet.
@@ -40,7 +49,7 @@ export function WorkflowRawView({ agent }: WorkflowRawViewProps) {
         <div className="flex flex-col gap-2">
           <h2 className="text-sm font-semibold text-gray-300">State</h2>
           <pre className="font-mono text-sm text-gray-200 bg-gray-900 rounded p-4 overflow-auto">
-            {JSON.stringify(agent.state, null, 2)}
+            {JSON.stringify(state, null, 2)}
           </pre>
         </div>
       )}

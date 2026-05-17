@@ -9,6 +9,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
   return (
     <CopilotKitProvider
       runtimeUrl="/api/copilotkit"
+      useSingleEndpoint={true}
       showDevConsole={true}
       renderToolCalls={[StockDataToolRenderer, CompanyOverviewToolRenderer]}
     >
