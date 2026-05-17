@@ -137,6 +137,36 @@ Also fixed `workflowV2Active` in `Navbar.tsx` to cover sub-paths (`/workflow-v2/
 
 ---
 
+### R11 — View Workflows display refinements
+
+- Removed the "Workflow Runs" heading — unnecessary chrome.
+- Removed the Graph ID column from the grid.
+- Added default sort: `startedAt` descending, via `sort: "desc"` on that column definition only.
+- Updated theme to a very dark near-black palette: `backgroundColor: #0d1117`, `chromeBackgroundColor: #161b22`, `oddRowBackgroundColor: #0d1117` (disables alternating row lightening from `colorSchemeDark`), `rowHoverColor: #21262d`, `borderColor: #30363d`, `foregroundColor: #e6edf3`.
+- Set `wrapperBorderRadius: 0` and `borderRadius: 0` for square corners on the grid.
+- Enabled `columnBorder: true` and `headerColumnBorder: true` for vertical separators in both cells and header. Set `headerColumnBorderHeight: "100%"` so header separators fill the full row height.
+- Added `formatLocalTime` helper that converts an ISO 8601 string to local-timezone `HH:mm:ss.SSS` (24-hour, no date). Applied as `valueFormatter` on both Started At and Completed At columns.
+
+**Files changed:** `components/ViewWorkflows.tsx`
+
+---
+
+### R12 — Workflow Run Name as clickable link
+
+Added a `WorkflowRunNameRenderer` cell renderer component to `ViewWorkflows.tsx`. The renderer receives `value` (the run name string) and `data.threadId` (from the full row) via `ICellRendererParams<RowData>`, and renders a Next.js `<Link>` pointing to `/workflow-v2/${data.threadId}`. Clicking navigates client-side to the existing view-mode route, allowing the user to review the completed workflow's graph, messages, and state. Styled with `text-blue-400 hover:text-blue-300 hover:underline`.
+
+**Files changed:** `components/ViewWorkflows.tsx`
+
+---
+
+### R13 — Rename "Run ID" column header to "Workflow Run ID"
+
+Updated the `headerName` for the `threadId` column in `ViewWorkflows.tsx` from `"Run ID"` to `"Workflow Run ID"`.
+
+**Files changed:** `components/ViewWorkflows.tsx`
+
+---
+
 ## Status
 
 | Requirement | Status |
@@ -151,3 +181,7 @@ Also fixed `workflowV2Active` in `Navbar.tsx` to cover sub-paths (`/workflow-v2/
 | R8 — Static graph visualizer | Complete |
 | R9 — Workflow run name in session storage | Complete |
 | R10 — View Workflows page with AG Grid | Complete |
+| R11 — View Workflows display refinements | Complete |
+| R12 — Workflow Run Name as clickable link | Complete |
+| R13 — Rename "Run ID" column to "Workflow Run ID" | Complete |
+
