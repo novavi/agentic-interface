@@ -1,32 +1,61 @@
 "use client";
 
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
-
-type View = "workflow" | "conversation";
+import { cn } from "@/lib/utils";
+import type { ConversationEntry } from "@/components/LayoutClient";
 
 interface NavbarProps {
-  activeView: View;
-  onViewChange: (view: View) => void;
+  conversations: ConversationEntry[];
 }
 
-const NAV_ITEMS: { view: View; label: string }[] = [
-  { view: "workflow", label: "Workflow" },
-  { view: "conversation", label: "Conversation" },
-];
+export function Navbar({ conversations }: NavbarProps) {
+  const pathname = usePathname();
 
-export function Navbar({ activeView, onViewChange }: NavbarProps) {
+  const workflowActive =
+    pathname === "/workflow" || pathname.startsWith("/workflow/");
+
   return (
     <nav className="flex flex-col p-3 gap-1">
-      {NAV_ITEMS.map(({ view, label }) => (
-        <Button
-          key={view}
-          variant={activeView === view ? "secondary" : "ghost"}
-          className="justify-start w-full cursor-pointer rounded-sm"
-          onClick={() => onViewChange(view)}
-        >
-          {label}
-        </Button>
-      ))}
+      <span className="px-2 py-1 text-xs font-medium text-gray-500 uppercase tracking-wider">
+        Workflows
+      </span>
+      <Button
+        variant={workflowActive ? "secondary" : "ghost"}
+        size="sm"
+        className={cn("justify-start w-full cursor-pointer rounded-sm")}
+        asChild
+      >
+        <Link href="/workflow">Run Workflow</Link>
+      </Button>
+      <span
+        className={cn(
+          "flex items-center h-7 gap-1 rounded-sm px-2.5 text-[0.8rem] font-medium",
+          "opacity-40 cursor-not-allowed text-gray-400 select-none"
+        )}
+      >
+        View Workflows
+      </span>
+
+      <span className="px-2 py-1 mt-2 text-xs font-medium text-gray-500 uppercase tracking-wider">
+        Conversations
+      </span>
+      {conversations.map((conv) => {
+        const href = `/conversation/${conv.threadId}`;
+        const isActive = pathname === href;
+        return (
+          <Button
+            key={conv.threadId}
+            variant={isActive ? "secondary" : "ghost"}
+            size="sm"
+            className="justify-start w-full cursor-pointer rounded-sm"
+            asChild
+          >
+            <Link href={href}>{conv.name}</Link>
+          </Button>
+        );
+      })}
     </nav>
   );
 }

@@ -1,12 +1,24 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { useAgent, useCopilotKit } from "@copilotkit/react-core/v2";
 import { ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AGENT_CONFIG } from "@/config/backend-config";
 import { WorkflowRawView } from "@/components/WorkflowRawView";
 import { WorkflowVisualizer } from "@/components/WorkflowVisualizer";
+import type { ConnectionState } from "@/components/WorkflowVisualizer";
+
+const WORKFLOWS_KEY = "agentic-interface-workflows";
+
+interface WorkflowEntry {
+  threadId: string;
+  graphId: string;
+  status: "running" | "complete" | "error";
+  startedAt: string;
+  completedAt?: string;
+}
 
 const workflowAgents = AGENT_CONFIG.filter((a) => a.isWorkflowGraph);
 
@@ -18,29 +30,84 @@ const STATUS_LABELS: Record<string, string> = {
 
 type Tab = "graph" | "raw";
 
-export function Workflow() {
+interface WorkflowProps {
+  threadId: string | null;
+}
+
+export function Workflow({ threadId: threadIdProp }: WorkflowProps) {
+  const router = useRouter();
   const [selectedGraphId, setSelectedGraphId] = useState<string>(workflowAgents[0].graphId);
-  const [currentThreadId, setCurrentThreadId] = useState<string | null>(null);
+  const [currentThreadId, setCurrentThreadId] = useState<string | null>(threadIdProp);
   const [activeTab, setActiveTab] = useState<Tab>("graph");
 
   const { agent } = useAgent({ agentId: selectedGraphId });
   const { copilotkit } = useCopilotKit();
 
+  // Keep currentThreadId in sync with the URL (back/forward navigation).
+  useEffect(() => {
+    setCurrentThreadId(threadIdProp);
+  }, [threadIdProp]);
+
+  // When loading from a URL with a threadId, restore the graphId from session storage.
+  useEffect(() => {
+    if (!threadIdProp) return;
+    try {
+      const entries: WorkflowEntry[] = JSON.parse(sessionStorage.getItem(WORKFLOWS_KEY) ?? "[]");
+      const entry = entries.find((w) => w.threadId === threadIdProp);
+      if (entry) setSelectedGraphId(entry.graphId);
+    } catch {
+      // ignore
+    }
+  }, [threadIdProp]);
+
   const handleGraphChange = (newGraphId: string) => {
     setSelectedGraphId(newGraphId);
-    setCurrentThreadId(null);
+    router.push("/workflow");
   };
 
   const handleStartWorkflow = async () => {
     const selectedAgent = workflowAgents.find((a) => a.graphId === selectedGraphId)!;
     const newThreadId = crypto.randomUUID();
+
     setCurrentThreadId(newThreadId);
+
+    // Record the new run in session storage.
+    try {
+      const entries: WorkflowEntry[] = JSON.parse(sessionStorage.getItem(WORKFLOWS_KEY) ?? "[]");
+      entries.push({
+        threadId: newThreadId,
+        graphId: selectedGraphId,
+        status: "running",
+        startedAt: new Date().toISOString(),
+      });
+      sessionStorage.setItem(WORKFLOWS_KEY, JSON.stringify(entries));
+    } catch {
+      // ignore
+    }
+
     agent.threadId = newThreadId;
     agent.setMessages([
       { id: crypto.randomUUID(), role: "user", content: selectedAgent.triggerMessage! },
     ]);
-    await copilotkit.runAgent({ agent });
+    copilotkit.runAgent({ agent }); // fire and forget — run continues regardless of navigation
+    router.push(`/workflow/${newThreadId}`);
   };
+
+  // Update the session storage entry when the SSE connection closes or errors.
+  const handleConnectionStateChange = useCallback((state: ConnectionState) => {
+    if (!currentThreadId || state === "open") return;
+    try {
+      const entries: WorkflowEntry[] = JSON.parse(sessionStorage.getItem(WORKFLOWS_KEY) ?? "[]");
+      const idx = entries.findIndex((w) => w.threadId === currentThreadId);
+      if (idx !== -1) {
+        entries[idx].status = state === "closed" ? "complete" : "error";
+        entries[idx].completedAt = new Date().toISOString();
+        sessionStorage.setItem(WORKFLOWS_KEY, JSON.stringify(entries));
+      }
+    } catch {
+      // ignore
+    }
+  }, [currentThreadId]);
 
   const rawStatus = agent.state?.status as string | undefined;
   const statusLabel = rawStatus ? (STATUS_LABELS[rawStatus] ?? rawStatus) : "";
@@ -104,6 +171,7 @@ export function Workflow() {
             graphId={selectedGraphId}
             currentThreadId={currentThreadId}
             isRunning={agent.isRunning}
+            onConnectionStateChange={handleConnectionStateChange}
           />
         ) : (
           <WorkflowRawView agent={agent} />

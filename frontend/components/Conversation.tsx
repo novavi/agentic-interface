@@ -1,27 +1,15 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import { CopilotChat } from "@copilotkit/react-core/v2";
 
-const DEFAULT_AGENT_ID = process.env.NEXT_PUBLIC_DEFAULT_CONVERSATIONAL_AGENT ?? "agent_convo_basic";
-const THREAD_ID_KEY = "agentic-interface-conversational-threadid";
+const DEFAULT_AGENT_ID =
+  process.env.NEXT_PUBLIC_DEFAULT_CONVERSATIONAL_AGENT ?? "agent_convo_basic";
 
-export function Conversation() {
-  const [threadId, setThreadId] = useState<string | null>(null);
+interface ConversationProps {
+  threadId: string;
+}
 
-  useEffect(() => {
-    let id = sessionStorage.getItem(THREAD_ID_KEY);
-    if (!id) {
-      id = crypto.randomUUID();
-      sessionStorage.setItem(THREAD_ID_KEY, id);
-    }
-    setThreadId(id);
-  }, []);
-
-  if (!threadId) {
-    return <div className="flex-1 bg-gray-950 animate-pulse" />;
-  }
-
+export function Conversation({ threadId }: ConversationProps) {
   return (
     <CopilotChat
       className="h-full"

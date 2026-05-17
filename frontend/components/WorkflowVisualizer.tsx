@@ -30,7 +30,7 @@ interface GraphResponse {
 }
 
 type StreamEventRecord = Record<string, unknown>;
-type ConnectionState = "open" | "closed" | "error";
+export type ConnectionState = "open" | "closed" | "error";
 
 function formatNodeLabel(id: string): string {
   if (id === "__start__") return "Start";
@@ -97,9 +97,10 @@ interface WorkflowVisualizerProps {
   graphId: string;
   currentThreadId: string | null;
   isRunning: boolean;
+  onConnectionStateChange?: (state: ConnectionState) => void;
 }
 
-export function WorkflowVisualizer({ graphId, currentThreadId }: WorkflowVisualizerProps) {
+export function WorkflowVisualizer({ graphId, currentThreadId, onConnectionStateChange }: WorkflowVisualizerProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [loading, setLoading] = useState(true);
@@ -164,6 +165,11 @@ export function WorkflowVisualizer({ graphId, currentThreadId }: WorkflowVisuali
       es.close();
     };
   }, [graphId, currentThreadId]);
+
+  // Notify parent when connection state changes (e.g. to update session storage status).
+  useEffect(() => {
+    if (connectionState !== null) onConnectionStateChange?.(connectionState);
+  }, [connectionState, onConnectionStateChange]);
 
   // Keep the event log scrolled to the bottom as new events arrive.
   useEffect(() => {
