@@ -167,6 +167,37 @@ Updated the `headerName` for the `threadId` column in `ViewWorkflows.tsx` from `
 
 ---
 
+### R14 — Live node highlighting in the graph
+
+Uses `agent.state.completed_steps` (already flowing through `useAgent`) to highlight completed nodes on the ReactFlow graph in real time. No new hooks, state, effects, or files — two computed values derived during render and one change to the ReactFlow JSX.
+
+**Node ID mapping:**
+- Each entry `s` in `completed_steps` maps to `s + "_node"` (e.g. `"step_1"` → `"step_1_node"`).
+- `"__start__"` is added to the completed set when `completed_steps.length > 0` (graph entry has been traversed).
+- `"__end__"` is added when `agent.state?.status === "complete"`. Only lowercase `__end__` is needed — both graphs import `END` from `langgraph.graph` which resolves to `"__end__"` (confirmed by reading `langgraph/constants.py` and both graph source files). The `__END__` variant in earlier helpers was unnecessary defensive code and is not used.
+
+**No "running" state:** both the AG-UI and raw LangGraph streams fire only on node *completion*, not on node *start*. There is no reliable way to identify the currently-executing node (particularly on branching graphs), so only two visual states are used: default (not yet run) and completed.
+
+**Colours (dark-mode, consistent with industry conventions):**
+- Default: no style override — ReactFlow dark defaults (gray border, dark background).
+- Completed: `border: '2px solid #10b981'` (Tailwind emerald-500) + `backgroundColor: 'rgba(16, 185, 129, 0.12)'` (subtle green tint). Matches the dominant pattern across dark-mode workflow tools (Temporal, Prefect, LangSmith).
+
+**Reset behaviour:** `handleStartWorkflow` already calls `agent.setState({})` before each run, which clears `completed_steps`, so all nodes automatically revert to the default style at the start of every new run. Highlighting also works correctly in view mode (loading a past thread via URL) because `connectAgent` restores the final `agent.state` including `completed_steps`.
+
+**Post-implementation fixes:**
+
+- **Router node never colored:** `router_node` in both graphs originally returned only `{"status": "running"}` with no `completed_steps` entry. Fixed by adding `"completed_steps": ["router"]` to the running branch in both `agent_auto_ex_1.py` and `agent_auto_ex_2.py`. This maps to `"router_node"` via the standard `s + "_node"` rule.
+
+- **Completed steps not clearing on navigation back to `/workflow-v2`:** `completedSteps` was derived unconditionally from `agent.state`, so stale data from a previous run persisted after navigating back to the no-thread route. Fixed by guarding both `completedSteps` and the `__end__` addition with `currentThreadId`: `const completedSteps = currentThreadId ? (agent.state?.completed_steps ?? []) : []` and `if (currentThreadId && rawStatus === "complete") completedNodeIds.add("__end__")`.
+
+- **View mode showing stale data / wrong graph for replayed threads:** Two bugs:
+  1. The view-mode `useEffect` had a `hasData` short-circuit that skipped `connectAgent` whenever `agent.messages` or `agent.state` was non-empty. Since CopilotKit stores agent state globally (not per-component), navigating to any thread view after a live run would find `hasData = true` and display the stale prior-run data instead of replaying the requested thread. Fixed by removing the `hasData` guard entirely — the existing `viewConnectedRef.current === threadIdProp` check is sufficient for deduplication.
+  2. The graph fetch `useEffect` had no cancellation guard. On navigation to a thread with a different graph (e.g. ex_2), the component initially renders with `selectedGraphId = "agent_auto_ex_1"` (default), starts a fetch for ex_1, then the graph-restore effect updates `selectedGraphId` to ex_2 and starts a fetch for ex_2. Both fetches are in-flight simultaneously; whichever resolves last wins, causing the stale ex_1 graph to overwrite the ex_2 graph non-deterministically. Fixed by adding a `cancelled` flag with a cleanup function so that the stale ex_1 response is discarded when the effect re-runs for ex_2.
+
+**Files changed:** `components/NextGenWorkflow.tsx`, `agent-auto/graphs/agent_auto_ex_1.py`, `agent-auto/graphs/agent_auto_ex_2.py`
+
+---
+
 ## Status
 
 | Requirement | Status |
@@ -184,4 +215,5 @@ Updated the `headerName` for the `threadId` column in `ViewWorkflows.tsx` from `
 | R11 — View Workflows display refinements | Complete |
 | R12 — Workflow Run Name as clickable link | Complete |
 | R13 — Rename "Run ID" column to "Workflow Run ID" | Complete |
+| R14 — Live node highlighting | Complete |
 

@@ -37,7 +37,7 @@ async def graph():
         else:
             content = raw
         if WORKFLOW_TRIGGER_MESSAGE in content.lower():
-            return {"status": "running"}
+            return {"status": "running", "completed_steps": ["router"]}
         return {
             "status": "idle",
             "messages": [AIMessage(content=f"Send '{WORKFLOW_TRIGGER_MESSAGE}' to begin the Example 1 Workflow.")],

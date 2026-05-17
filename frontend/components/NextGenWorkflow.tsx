@@ -131,7 +131,10 @@ export function NextGenWorkflow({ threadId: threadIdProp }: NextGenWorkflowProps
   const [graphError, setGraphError] = useState<string | null>(null);
 
   // Fetch static graph definition whenever the selected graph changes.
+  // The `cancelled` flag discards responses from superseded fetches (e.g. when
+  // the graph-restore effect updates selectedGraphId after initial mount).
   useEffect(() => {
+    let cancelled = false;
     setGraphLoading(true);
     setGraphError(null);
     fetch(getAgentGraphUrl(selectedGraphId))
@@ -140,12 +143,14 @@ export function NextGenWorkflow({ threadId: threadIdProp }: NextGenWorkflowProps
         return res.json() as Promise<GraphResponse>;
       })
       .then((data) => {
+        if (cancelled) return;
         const { nodes: n, edges: e } = toReactFlow(data);
         setNodes(n);
         setEdges(e);
       })
-      .catch((err: Error) => setGraphError(err.message))
-      .finally(() => setGraphLoading(false));
+      .catch((err: Error) => { if (!cancelled) setGraphError(err.message); })
+      .finally(() => { if (!cancelled) setGraphLoading(false); });
+    return () => { cancelled = true; };
   }, [selectedGraphId, setNodes, setEdges]);
 
   // Sync currentThreadId with URL (back/forward navigation).
@@ -176,14 +181,6 @@ export function NextGenWorkflow({ threadId: threadIdProp }: NextGenWorkflowProps
     }
     if (isWorkflowRunning) return;
     if (viewConnectedRef.current === threadIdProp) return;
-
-    const hasData =
-      (agent.messages?.length ?? 0) > 0 ||
-      Object.keys(agent.state ?? {}).length > 0;
-    if (hasData) {
-      viewConnectedRef.current = threadIdProp;
-      return;
-    }
 
     viewConnectedRef.current = threadIdProp;
     agent.threadId = threadIdProp;
@@ -276,6 +273,16 @@ export function NextGenWorkflow({ threadId: threadIdProp }: NextGenWorkflowProps
   const assistantMessages = agent.messages.filter((m) => m.role === "assistant");
   const hasState = agent.state && Object.keys(agent.state).length > 0;
 
+  const completedSteps: string[] = currentThreadId ? (agent.state?.completed_steps ?? []) : [];
+  const completedNodeIds = new Set<string>(completedSteps.map((s) => `${s}_node`));
+  if (completedSteps.length > 0) completedNodeIds.add("__start__");
+  if (currentThreadId && rawStatus === "complete") completedNodeIds.add("__end__");
+
+  const completedNodeStyle = { border: "2px solid #10b981", backgroundColor: "rgba(16, 185, 129, 0.12)" };
+  const styledNodes = nodes.map((n) =>
+    completedNodeIds.has(n.id) ? { ...n, style: completedNodeStyle } : n
+  );
+
   return (
     <div className="flex flex-col h-full overflow-hidden">
       <div className="flex-none flex items-center gap-3 px-6 pt-6 pb-3">
@@ -325,7 +332,7 @@ export function NextGenWorkflow({ threadId: threadIdProp }: NextGenWorkflowProps
           ) : (
             <div className="h-full w-full">
               <ReactFlow
-                nodes={nodes}
+                nodes={styledNodes}
                 edges={edges}
                 onNodesChange={onNodesChange}
                 onEdgesChange={onEdgesChange}
