@@ -1,6 +1,23 @@
 # Agentic Interface (Proof of concept)
 
-Proof-of-concept frontend for agentic workflows.
+Proof-of-concept frontend for agentic workflows supporting streaming visual graph rendering.
+
+# Architecture
+
+```mermaid
+flowchart LR
+    Frontend["**Frontend** — Next.js / React, CopilotKit UI Components / Hooks, React Flow"]
+    Backend["**Backend** — Next.js Route Handlers, CopilotKit Middleware, LangGraph RemoteGraph SDK"]
+    AgentConvo["**Agent Convo** — LangGraph Conversational ReAct Agent, MCP Tools"]
+    AgentAuto["**Agent Auto** — LangGraph Autonomous Workflow StateGraph Agent"]
+    LLM["**LLM** — OpenAI API"]
+
+    Frontend -->|"AG-UI"| Backend
+    Backend -->|"HTTP / SSE"| AgentConvo
+    Backend -->|"HTTP / SSE"| AgentAuto
+    AgentConvo -->|"HTTPS"| LLM
+    AgentAuto -->|"HTTPS"| LLM
+```
 
 # Prerequisites
 
@@ -14,7 +31,7 @@ Proof-of-concept frontend for agentic workflows.
 
 ## Agent - Conversational
 
-A conversational LangGraph ReAct agent with an MCP tool, served via the LangGraph dev server.
+A conversational [LangGraph](https://www.langchain.com/langgraph) ReAct agent with an [MCP](https://modelcontextprotocol.io/) tool, served via the LangGraph dev server.
 
 ```bash
 cd agent-convo
@@ -25,7 +42,7 @@ uv run langgraph dev          # starts the server at http://localhost:2024
 
 ## Agent - Autonomous
 
-An autonomous LangGraph agent that executes a multi-step workflow with a random branch decision, served via the LangGraph dev server.
+An autonomous [LangGraph](https://www.langchain.com/langgraph) agent that executes multi-step workflows with branch decisions, served via the LangGraph dev server.
 
 ```bash
 cd agent-auto
@@ -34,11 +51,11 @@ uv sync                            # creates .venv and installs dependencies
 uv run langgraph dev --port 2025   # starts the server at http://localhost:2025
 ```
 
-> Note: agent-convo runs on port 2024 and agent-auto on port 2025 — both can be started simultaneously.
+> **Note:** `agent-convo` runs on port 2024 and `agent-auto` on port 2025 — both can be started simultaneously.
 
 ## Frontend
 
-A chat UI built with Next.js and CopilotKit, connecting to the Agent - Conversational LangGraph agent.
+A UI supporting streaming chat, tool call visual renderers and streaming visual graph rendering built with [Next.js](https://nextjs.org/), [CopilotKit](https://www.copilotkit.ai/), [AG-UI](https://docs.ag-ui.com/) and [React Flow](https://reactflow.dev/), connecting to the Agent - Conversational LangGraph agent.
 
 ```bash
 cd frontend
@@ -47,4 +64,4 @@ npm install
 npm run dev                        # starts on http://localhost:3000
 ```
 
-> Note: `uv run langgraph dev` (agent-convo) must be running before starting the frontend so the `/api/copilotkit` route can reach the agent.
+> **Note:** The `agent-convo` and `agent-auto` agents must be running (see above sections) before starting the frontend so the `/api/copilotkit` route can reach the agents.
