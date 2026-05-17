@@ -15,7 +15,9 @@ export function Navbar({ conversations }: NavbarProps) {
 
   const workflowActive =
     pathname === "/workflow" || pathname.startsWith("/workflow/");
-  const workflowV2Active = pathname === "/workflow-v2";
+  const workflowV2Active =
+    pathname === "/workflow-v2" || pathname.startsWith("/workflow-v2/");
+  const viewWorkflowsActive = pathname === "/view-workflows";
 
   return (
     <nav className="flex flex-col p-3 gap-1">
@@ -38,14 +40,14 @@ export function Navbar({ conversations }: NavbarProps) {
       >
         <Link href="/workflow-v2">Run Workflow V2</Link>
       </Button>
-      <span
-        className={cn(
-          "flex items-center h-7 gap-1 rounded-sm px-2.5 text-[0.8rem] font-medium",
-          "opacity-40 cursor-not-allowed text-gray-400 select-none"
-        )}
+      <Button
+        variant={viewWorkflowsActive ? "secondary" : "ghost"}
+        size="sm"
+        className={cn("justify-start w-full cursor-pointer rounded-sm")}
+        asChild
       >
-        View Workflows
-      </span>
+        <Link href="/view-workflows">View Workflows</Link>
+      </Button>
 
       <span className="px-2 py-1 mt-2 text-xs font-medium text-gray-500 uppercase tracking-wider">
         Conversations

@@ -25,6 +25,7 @@ const NODE_HEIGHT = 40;
 interface WorkflowEntry {
   threadId: string;
   graphId: string;
+  workflowRunName: string;
   status: "running" | "complete" | "error";
   startedAt: string;
   completedAt?: string;
@@ -221,6 +222,7 @@ export function NextGenWorkflow({ threadId: threadIdProp }: NextGenWorkflowProps
       entries.push({
         threadId: newThreadId,
         graphId: selectedGraphId,
+        workflowRunName: `Workflow Run #${entries.length + 1}`,
         status: "running",
         startedAt: new Date().toISOString(),
       });

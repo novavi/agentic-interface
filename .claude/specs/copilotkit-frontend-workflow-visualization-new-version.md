@@ -113,6 +113,30 @@ The right panel is unchanged from R7 — messages and state with the same loadin
 
 ---
 
+### R9 — Workflow run name in session storage
+
+Added `workflowRunName: string` to the `WorkflowEntry` interface. When a new run is started, `workflowRunName` is set to `"Workflow Run #n"` where `n = entries.length + 1` (computed before the new entry is pushed, so it reflects the count of all prior runs in the current session).
+
+**Files changed:** `components/NextGenWorkflow.tsx`
+
+---
+
+### R10 — View Workflows page with AG Grid
+
+Created `components/ViewWorkflows.tsx` and `app/view-workflows/page.tsx`. Wired up the previously-disabled "View Workflows" navbar item to `/view-workflows`.
+
+`ViewWorkflows` is a `"use client"` component that reads from `sessionStorage` under `WORKFLOWS_KEY` on mount (via `useEffect`). Because Next.js App Router unmounts and remounts the page component on each navigation, this naturally loads fresh data every time the user visits the page — no polling required.
+
+Uses AG Grid Community v35 (`ag-grid-community` + `ag-grid-react`) with `AllCommunityModule` and `themeQuartz.withPart(colorSchemeDark)` for a dark theme consistent with the app's UI.
+
+Columns: Workflow Run Name (`workflowRunName`, falls back to `""` for pre-R9 entries), Run ID (`threadId`), Graph Name (looked up from `AGENT_CONFIG` by `graphId`, falls back to raw `graphId` if not found), Graph ID, Status, Started At, Completed At (empty string when not set).
+
+Also fixed `workflowV2Active` in `Navbar.tsx` to cover sub-paths (`/workflow-v2/*`) consistently with `workflowActive`.
+
+**Files changed:** `components/ViewWorkflows.tsx` (created), `app/view-workflows/page.tsx` (created), `components/Navbar.tsx`
+
+---
+
 ## Status
 
 | Requirement | Status |
@@ -125,3 +149,5 @@ The right panel is unchanged from R7 — messages and state with the same loadin
 | R6 — Session storage tracking + status display | Complete |
 | R7 — Routing | Complete |
 | R8 — Static graph visualizer | Complete |
+| R9 — Workflow run name in session storage | Complete |
+| R10 — View Workflows page with AG Grid | Complete |
