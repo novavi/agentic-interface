@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { useAgent, useCopilotKit } from "@copilotkit/react-core/v2";
 import {
   ReactFlow,
-  Background,
   Controls,
   MarkerType,
   useNodesState,
@@ -18,6 +17,11 @@ import { ChevronDown, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AGENT_CONFIG, getAgentGraphUrl } from "@/config/backend-config";
 import { mapStatusLabel } from "@/lib/workflow-status";
+import { PrismLight as SyntaxHighlighter } from "react-syntax-highlighter";
+import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
+import jsonLang from "react-syntax-highlighter/dist/esm/languages/prism/json";
+
+SyntaxHighlighter.registerLanguage("json", jsonLang);
 
 const WORKFLOWS_KEY = "agentic-interface-workflows";
 const NODE_WIDTH = 180;
@@ -387,7 +391,7 @@ export function NextGenWorkflow({ threadId: threadIdProp }: NextGenWorkflowProps
                 {graphError}
               </div>
             ) : (
-              <div className="h-full w-full">
+              <div className="h-full w-full rounded border border-gray-700">
                 <ReactFlow
                   nodes={styledNodes}
                   edges={edges}
@@ -400,8 +404,8 @@ export function NextGenWorkflow({ threadId: threadIdProp }: NextGenWorkflowProps
                   fitView
                   fitViewOptions={{ padding: 0.2 }}
                   colorMode="dark"
+                  style={{ background: "#0a0a0a" }}
                 >
-                  <Background />
                   <Controls showInteractive={false} />
                 </ReactFlow>
               </div>
@@ -437,9 +441,13 @@ export function NextGenWorkflow({ threadId: threadIdProp }: NextGenWorkflowProps
                 {hasState && (
                   <div className="flex flex-col gap-2">
                     <h2 className="text-sm font-semibold text-gray-300">State</h2>
-                    <pre className="font-mono text-sm text-gray-200 bg-gray-900 rounded p-4 overflow-auto">
+                    <SyntaxHighlighter
+                      language="json"
+                      style={vscDarkPlus}
+                      customStyle={{ margin: 0, borderRadius: "0.375rem", overflow: "auto", fontSize: "0.75rem", background: "#0a0a0a" }}
+                    >
                       {JSON.stringify(agent.state, null, 2)}
-                    </pre>
+                    </SyntaxHighlighter>
                   </div>
                 )}
               </>

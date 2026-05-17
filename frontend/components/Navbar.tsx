@@ -21,13 +21,13 @@ export function Navbar({ conversations }: NavbarProps) {
 
   return (
     <nav className="flex flex-col p-3 gap-1">
-      <span className="px-2 py-1 text-xs font-medium text-gray-500 uppercase tracking-wider">
+      <span className="px-2 py-1 text-base font-medium text-gray-500 uppercase tracking-wider">
         Workflows
       </span>
       <Button
         variant={workflowActive ? "secondary" : "ghost"}
         size="sm"
-        className={cn("justify-start w-full cursor-pointer rounded-sm")}
+        className={cn("justify-start w-full cursor-pointer rounded-sm text-base")}
         asChild
       >
         <Link href="/workflow">Run Workflow</Link>
@@ -35,7 +35,7 @@ export function Navbar({ conversations }: NavbarProps) {
       <Button
         variant={workflowV2Active ? "secondary" : "ghost"}
         size="sm"
-        className={cn("justify-start w-full cursor-pointer rounded-sm")}
+        className={cn("justify-start w-full cursor-pointer rounded-sm text-base")}
         asChild
       >
         <Link href="/workflow-v2">Run Workflow V2</Link>
@@ -43,13 +43,13 @@ export function Navbar({ conversations }: NavbarProps) {
       <Button
         variant={viewWorkflowsActive ? "secondary" : "ghost"}
         size="sm"
-        className={cn("justify-start w-full cursor-pointer rounded-sm")}
+        className={cn("justify-start w-full cursor-pointer rounded-sm text-base")}
         asChild
       >
         <Link href="/view-workflows">View Workflows</Link>
       </Button>
 
-      <span className="px-2 py-1 mt-2 text-xs font-medium text-gray-500 uppercase tracking-wider">
+      <span className="px-2 py-1 mt-2 text-base font-medium text-gray-500 uppercase tracking-wider">
         Conversations
       </span>
       {conversations.map((conv) => {
@@ -60,7 +60,7 @@ export function Navbar({ conversations }: NavbarProps) {
             key={conv.threadId}
             variant={isActive ? "secondary" : "ghost"}
             size="sm"
-            className="justify-start w-full cursor-pointer rounded-sm"
+            className="justify-start w-full cursor-pointer rounded-sm text-base"
             asChild
           >
             <Link href={href}>{conv.name}</Link>

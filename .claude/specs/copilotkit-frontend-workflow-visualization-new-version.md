@@ -238,6 +238,49 @@ Added `proOptions={{ hideAttribution: true }}` to the `<ReactFlow>` component in
 
 ---
 
+### R17 — ReactFlow graph canvas styling
+
+Removed the `<Background />` component (and its `Background` import) from the ReactFlow canvas. The dot-grid overlay is appropriate for editable diagram tools but adds visual noise to a read-only workflow view.
+
+Set `style={{ background: "#0a0a0a" }}` directly on the `<ReactFlow>` component. `colorMode="dark"` sets CSS variables that produce a medium-grey canvas by default; the inline `style` prop overrides the rendered container div's background to near-black. `#0a0a0a` was chosen over pure `#000000` to avoid harsh contrast against the surrounding UI.
+
+Added `border border-gray-700` and `rounded` to the `<div className="h-full w-full">` wrapper that contains `<ReactFlow>`. `border-gray-700` matches the border used on the status-field value boxes (established in R16), giving the canvas a consistent pale border at the same weight as the rest of the component. The border is placed on the wrapper rather than on `<ReactFlow>` itself to avoid interfering with ReactFlow's internal layout.
+
+**Files changed:** `components/NextGenWorkflow.tsx`
+
+---
+
+### R18 — JSON syntax highlighting for the State panel
+
+Replace the plain `<pre>` block used to render `agent.state` in the right-hand panel with a syntax-highlighted view using `react-syntax-highlighter`.
+
+**Package:** `react-syntax-highlighter` (npm). Use the `PrismLight` named export (the tree-shakeable lighter build) and register only the `json` language — this avoids bundling the full Prism language registry, which is important for Next.js bundle size. Types are provided via `@types/react-syntax-highlighter`.
+
+**Rendering:** Replace the existing `<pre>` element (lines 439-441 in `NextGenWorkflow.tsx`) with a `<PrismLight>` component. Pass `language="json"` and `{JSON.stringify(agent.state, null, 2)}` as children. The `"State"` heading and the outer `flex flex-col gap-2` wrapper are retained unchanged.
+
+**Theme:** `vscDarkPlus` (imported from `react-syntax-highlighter/dist/esm/styles/prism`). Matches VS Code's Dark+ palette — high contrast, widely recognised, good legibility for key/string/number/boolean distinction.
+
+**Line numbers:** Disabled.
+
+**Background:** `#0a0a0a` — matches the ReactFlow canvas background (R17), set via `customStyle` to override the theme's own `#1e1e1e`. The messages block above it retains its existing `bg-gray-900` (`#111827`) background unchanged.
+
+**`customStyle`:** `{ margin: 0, borderRadius: "0.375rem", overflow: "auto", fontSize: "0.75rem", background: "#0a0a0a" }`. `margin: 0` removes the default top/bottom margin the component adds; `borderRadius` matches Tailwind's `rounded`; `fontSize` matches the `text-xs` scale used elsewhere in the panel.
+
+**`registerLanguage` call:** Placed at module level (outside the component) so it runs once on import rather than on every render.
+
+**Files changed:** `components/NextGenWorkflow.tsx`
+
+### R19 — Navbar font size increase
+
+Increased the font size of both group labels and nav item buttons in `components/Navbar.tsx`.
+
+- **Group labels** ("Workflows", "Conversations"): `text-xs` (12px) → `text-base` (16px), via two steps: `text-xs` → `text-sm` → `text-base`.
+- **Nav item buttons**: The `size="sm"` Button variant sets `text-[0.8rem]` (12.8px). Added `text-base` to each button's `className`; tailwind-merge overrides the variant's text size while leaving button height and padding unchanged. Applied to all five buttons: Run Workflow, Run Workflow V2, View Workflows, and the dynamic conversation entries.
+
+**Files changed:** `components/Navbar.tsx`
+
+---
+
 ## Status
 
 | Requirement | Status |
@@ -258,4 +301,7 @@ Added `proOptions={{ hideAttribution: true }}` to the `<ReactFlow>` component in
 | R14 — Live node highlighting | Complete |
 | R15 — Hide ReactFlow attribution panel | Complete |
 | R16 — Status bar and panel labels | Complete |
+| R17 — ReactFlow graph canvas styling | Complete |
+| R18 — JSON syntax highlighting for State panel | Complete |
+| R19 — Navbar font size increase | Complete |
 
