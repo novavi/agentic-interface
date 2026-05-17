@@ -198,6 +198,46 @@ Uses `agent.state.completed_steps` (already flowing through `useAgent`) to highl
 
 ---
 
+### R15 — Hide ReactFlow attribution panel
+
+Added `proOptions={{ hideAttribution: true }}` to the `<ReactFlow>` component in `NextGenWorkflow.tsx`. This is an official first-class prop provided by the open-source `@xyflow/react` library — it passes through to the internal `Attribution` component which returns `null` when set. The library includes a `data-message` on the attribution element asking that it only be hidden by Pro subscribers, but there is no license enforcement in the OSS build.
+
+**Files changed:** `components/NextGenWorkflow.tsx`
+
+---
+
+### R16 — Status bar and panel labels
+
+**Status bar (always visible):** Replaced the conditional two-field `Run ID / Status` line with a permanently-rendered four-field status bar so the graph definition never shifts on run start. Fields: Run Name, Status, Started At, Completed At. All four boxes are always present; they are empty when no thread is active. Time fields use `HH:mm:ss.SSS` local time (same as ViewWorkflows). The Run Name box carries a `title` attribute (`Run ID: <threadId>`) so the full thread ID is accessible via vanilla HTML5 tooltip on hover.
+
+**Styling:** Each field is rendered by a module-level `StatusField` helper component (presentation-only, no agent state). Label above the box: `text-[10px] font-semibold uppercase tracking-wider text-gray-500`. Box: `h-7 rounded border border-gray-700 bg-gray-800/50 text-xs text-gray-300 font-mono truncate` — consistent with the select element palette, visually distinct as read-only.
+
+**Run meta data:** Added `RunMeta` interface (`name`, `startedAt`, `completedAt?`) and `runMeta` state. A `useEffect` keyed on `[currentThreadId]` reads the matching `WorkflowEntry` from session storage whenever the active thread changes (including clearing to `null` when the thread is deselected). In `handleStartWorkflow` the `completedAt` timestamp is written to both session storage and `runMeta` state when the run finishes or errors, rather than relying on an effect re-run.
+
+**Panel labels:** Added a permanent `"Workflow Graph"` heading (`text-sm font-semibold text-gray-300`) above the ReactFlow canvas. Moved the `"Messages"` heading to always be the top of the right panel (previously it only appeared when messages were present). Both headings use identical typography so they are vertically aligned, and both content areas (ReactFlow canvas, messages list) have their tops aligned.
+
+**Files changed:** `components/NextGenWorkflow.tsx`
+
+**Post-implementation refinements:**
+
+- **Externalised `STATUS_LABELS`:** Created `lib/workflow-status.ts` exporting `STATUS_LABELS: Record<string, string>` (idle/running/complete/error) and `mapStatusLabel(status)` (returns `""` for falsy input, falls back to the raw value for unknown keys). Both `NextGenWorkflow.tsx` and `ViewWorkflows.tsx` now import from this file; the local `STATUS_LABELS` constant in `NextGenWorkflow.tsx` was removed. `ViewWorkflows.tsx` gained a `valueFormatter` on the Status column that calls `mapStatusLabel`, replacing raw string display.
+
+- **Status not clearing on navigation:** `rawStatus` was read unconditionally from `agent.state`, so navigating back to `/workflow-v2` (no thread) still showed "Complete" from the last run. Fixed by guarding the derivation: `const rawStatus = currentThreadId ? (agent.state?.status as string | undefined) : undefined`. This also correctly clears the `__end__` node highlight on navigation since that condition depends on `rawStatus`.
+
+- **Toolbar restructure:** Removed the separate status-bar `<div>` below the toolbar. Status fields now live inside the same toolbar row, grouped in a `ml-auto` wrapper that pushes them to the right-hand side. Added a small `flex-col` wrapper around the graph selector with a `"Workflow"` label (same `text-[10px] font-semibold uppercase tracking-wider text-gray-500` typography as the status field labels) so the selector is visually labelled. The toolbar now uses `items-end` alignment so all columns — labelled selector, Start Workflow button, and labelled status fields — share a common baseline.
+
+- **"Workflow Graph" label shortened to "Graph":** Consistent with the new "Workflow" label above the selector.
+
+- **Toolbar alignment and spacing:** Added `-ml-[3px]` to the Workflow selector wrapper to align it with the Graph label in the panel below. Changed `pb-3` (12 px) to `pb-[18px]` on the toolbar `<div>` for ~6 px of extra vertical separation between the toolbar and the graph/messages panels.
+
+- **Box height:** Changed `h-7` (28 px) to `h-8` (32 px) on status field value boxes to match the height of the select element.
+
+- **Immediate tooltip (CSS hover):** Replaced the HTML `title` attribute on `StatusField` with a custom CSS tooltip. The `title` attribute triggers the native browser tooltip which has a ~500 ms–1 s OS-level delay. The new implementation adds `group cursor-help` to the wrapper and renders an absolutely-positioned `<div>` below (`top-full mt-1`) that is `hidden` by default and `group-hover:block` on hover — zero delay, no extra dependency.
+
+**Files changed:** `components/NextGenWorkflow.tsx`, `lib/workflow-status.ts` (created), `components/ViewWorkflows.tsx`
+
+---
+
 ## Status
 
 | Requirement | Status |
@@ -216,4 +256,6 @@ Uses `agent.state.completed_steps` (already flowing through `useAgent`) to highl
 | R12 — Workflow Run Name as clickable link | Complete |
 | R13 — Rename "Run ID" column to "Workflow Run ID" | Complete |
 | R14 — Live node highlighting | Complete |
+| R15 — Hide ReactFlow attribution panel | Complete |
+| R16 — Status bar and panel labels | Complete |
 

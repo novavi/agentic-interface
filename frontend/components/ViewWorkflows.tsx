@@ -11,6 +11,7 @@ import {
   type ICellRendererParams,
 } from "ag-grid-community";
 import { AGENT_CONFIG } from "@/config/backend-config";
+import { mapStatusLabel } from "@/lib/workflow-status";
 
 const WORKFLOWS_KEY = "agentic-interface-workflows";
 
@@ -72,7 +73,7 @@ const colDefs: ColDef<RowData>[] = [
   { field: "workflowRunName", headerName: "Workflow Run Name", flex: 1, cellRenderer: WorkflowRunNameRenderer },
   { field: "threadId", headerName: "Workflow Run ID", flex: 2 },
   { field: "graphName", headerName: "Graph Name", flex: 1 },
-  { field: "status", headerName: "Status", flex: 1 },
+  { field: "status", headerName: "Status", flex: 1, valueFormatter: ({ value }) => mapStatusLabel(value as string) },
   {
     field: "startedAt",
     headerName: "Started At",
