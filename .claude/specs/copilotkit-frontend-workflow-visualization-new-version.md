@@ -2,7 +2,9 @@
 
 ## Overview
 
-After extended iteration on `Workflow.tsx` failed to produce a component that live-updates messages and state during an active workflow run, we established a new baseline by recovering the last known working version of the Workflow component from Git history. That version was committed to `NextGenWorkflow.tsx` and exposed under a separate nav item ("Run Workflow V2") so it could be tested and iterated on independently without disturbing the existing `Workflow.tsx`.
+This plan builds on and completely replaces the work undertaken in **[copilotkit-frontend-workflow-visualization-phase-123.md](./copilotkit-frontend-workflow-visualization-phase-123.md)** and **[copilotkit-frontend-workflow-visualization-phase-3-improvements.md](./copilotkit-frontend-workflow-visualization-phase-3-improvements.md)**. The implementation files from those plans have been retired to `scratch/` as part of R20 in this plan (see also the Important Note at the top of each of those files).
+
+After extended iteration on `Workflow.tsx` (the component produced by those earlier plans) failed to produce a component that live-updates messages and state during an active workflow run, we established a new baseline by recovering the last known working version of the Workflow component from Git history. That version was committed to `NextGenWorkflow.tsx` and exposed under a separate nav item ("Run Workflow V2") so it could be tested and iterated on independently without disturbing the existing `Workflow.tsx`.
 
 The overall goal is to build a correct, working Workflow component that:
 - Live-updates messages and state in real time as the workflow runs
@@ -295,6 +297,35 @@ Also removed the now-dead "Run Workflow" nav item from `Navbar.tsx` (its `/workf
 
 **Files changed:** `scratch/` (created at repo root), `components/Navbar.tsx`, `app/page.tsx`
 
+### R21 — Rename NextGenWorkflow to Workflow and retire the v2 route
+
+With the old `Workflow.tsx` safely archived in `scratch/` (R20), the `NextGenWorkflow` component and its `/workflow-v2` route were renamed to take their place as the canonical workflow implementation.
+
+**`components/NextGenWorkflow.tsx` → `components/Workflow.tsx`** (file renamed). Internal updates:
+- `interface NextGenWorkflowProps` → `interface WorkflowProps`
+- `export function NextGenWorkflow` → `export function Workflow`
+- `router.push("/workflow-v2")` → `router.push("/workflow")` (in `handleGraphChange`)
+- `window.history.pushState(null, '', /workflow-v2/${newThreadId})` → `/workflow/${newThreadId}` (in `handleStartWorkflow`)
+
+**`app/workflow-v2/` → `app/workflow/`** (folder renamed). `app/workflow/[[...slug]]/page.tsx` updated:
+- Import changed from `@/components/NextGenWorkflow` to `@/components/Workflow`
+- JSX reference changed from `<NextGenWorkflow>` to `<Workflow>`
+- Page function renamed from `WorkflowV2Page` to `WorkflowPage`
+
+**`components/Navbar.tsx`:**
+- `workflowV2Active` renamed to `workflowActive`
+- Active path check updated from `/workflow-v2` to `/workflow`
+- Nav item label changed from "Run Workflow V2" to "Run Workflow"
+- Nav item href updated from `/workflow-v2` to `/workflow`
+
+**`app/page.tsx`:** root redirect updated from `/workflow-v2` to `/workflow`.
+
+**`components/ViewWorkflows.tsx`:** `WorkflowRunNameRenderer` link href updated from `/workflow-v2/${data.threadId}` to `/workflow/${data.threadId}`.
+
+A final grep confirmed zero remaining references to `NextGenWorkflow` or `workflow-v2` in the active frontend codebase.
+
+**Files changed:** `components/Workflow.tsx` (renamed from `NextGenWorkflow.tsx`), `app/workflow/[[...slug]]/page.tsx` (folder renamed from `workflow-v2`), `components/Navbar.tsx`, `app/page.tsx`, `components/ViewWorkflows.tsx`
+
 ---
 
 ## Status
@@ -305,7 +336,7 @@ Also removed the now-dead "Run Workflow" nav item from `Navbar.tsx` (its `/workf
 | R2 — Correct agent ID | Complete |
 | R3 — Graph selector | Complete |
 | R4 — Reset on change / new run | Complete |
-| R5 — Rename to `NextGenWorkflow` | Complete |
+| R5 — Rename to NextGenWorkflow | Complete |
 | R6 — Session storage tracking + status display | Complete |
 | R7 — Routing | Complete |
 | R8 — Static graph visualizer | Complete |
@@ -321,4 +352,5 @@ Also removed the now-dead "Run Workflow" nav item from `Navbar.tsx` (its `/workf
 | R18 — JSON syntax highlighting for State panel | Complete |
 | R19 — Navbar font size increase | Complete |
 | R20 — Archive unused components and pages | Complete |
+| R21 — Rename NextGenWorkflow to Workflow and retire v2 route | Complete |
 

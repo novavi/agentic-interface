@@ -152,11 +152,11 @@ function StatusField({ label, value, tooltip, width = "w-32" }: {
   );
 }
 
-interface NextGenWorkflowProps {
+interface WorkflowProps {
   threadId: string | null;
 }
 
-export function NextGenWorkflow({ threadId: threadIdProp }: NextGenWorkflowProps) {
+export function Workflow({ threadId: threadIdProp }: WorkflowProps) {
   const router = useRouter();
   const [selectedGraphId, setSelectedGraphId] = useState<string>(workflowAgents[0].graphId);
   const { agent } = useAgent({ agentId: selectedGraphId });
@@ -254,7 +254,7 @@ export function NextGenWorkflow({ threadId: threadIdProp }: NextGenWorkflowProps
     setSelectedGraphId(newGraphId);
     setCurrentThreadId(null);
     viewConnectedRef.current = null;
-    router.push("/workflow-v2");
+    router.push("/workflow");
   };
 
   const handleStartWorkflow = async () => {
@@ -278,7 +278,17 @@ export function NextGenWorkflow({ threadId: threadIdProp }: NextGenWorkflowProps
     setCurrentThreadId(newThreadId);
     setIsWorkflowRunning(true);
     viewConnectedRef.current = newThreadId; // prevent view-mode effect from interfering
-    window.history.pushState(null, '', `/workflow-v2/${newThreadId}`);
+
+    // IMPORTANT: Do NOT replace the below with router.push().
+    // Using router.push() here triggers a Next.js App Router navigation
+    // (server component re-render via Suspense/startTransition) which disrupts
+    // the useAgent subscription mid-run — live updates stop and the status label
+    // goes blank, even though the backend continues running correctly.
+    // window.history.pushState updates the URL bar only, with zero React/Next.js
+    // re-render, keeping this component mounted and the useAgent subscription
+    // alive for the full duration of the run.
+    // handleGraphChange can safely use router.push() because no run is active there.
+    window.history.pushState(null, '', `/workflow/${newThreadId}`);
 
     agent.threadId = newThreadId;
     agent.setMessages([

@@ -51,7 +51,7 @@ function WorkflowRunNameRenderer({ value, data }: ICellRendererParams<RowData>) 
   if (!data?.threadId) return value as string;
   return (
     <Link
-      href={`/workflow-v2/${data.threadId}`}
+      href={`/workflow/${data.threadId}`}
       className="text-blue-400 hover:text-blue-300 hover:underline"
     >
       {value as string}

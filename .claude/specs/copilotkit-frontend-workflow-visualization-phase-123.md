@@ -1,5 +1,18 @@
 # Plan: CopilotKit-based Frontend — Workflow Visualization
 
+> ## ⚠ IMPORTANT NOTE — THIS PLAN HAS BEEN SUPERSEDED
+>
+> This plan has been superseded by **[copilotkit-frontend-workflow-visualization-new-version.md](./copilotkit-frontend-workflow-visualization-new-version.md)**, which implements a replacement workflow visualization component from scratch.
+>
+> As part of that replacement, the implementation files produced by this plan have been retired and moved to the `scratch/` folder at the repo root (renamed with `.tsx.txt` so Next.js and TypeScript ignore them):
+>
+> - `frontend/components/Workflow.tsx` → `scratch/components/Workflow.tsx.txt`
+> - `frontend/components/WorkflowVisualizer.tsx` → `scratch/components/WorkflowVisualizer.tsx.txt`
+> - `frontend/app/debug-replay/page.tsx` → `scratch/app/debug-replay/page.tsx.txt`
+> - `frontend/app/workflow/[[...slug]]/page.tsx` → `scratch/app/workflow/[[...slug]]/page.tsx.txt`
+>
+> Do not use this plan as a guide for further development. Refer to the new-version plan linked above.
+
 ## Overview
 
 Extend the Workflow view to display a visual React Flow graph of the selected agent workflow. The user can toggle between a graph visualization and the existing raw message/state display. Phase 1 focuses entirely on the static graph definition (shape, nodes, directed edges, conditional branches). Live execution state overlay — highlighting the active node as a workflow runs — is deferred to Phase 2.
