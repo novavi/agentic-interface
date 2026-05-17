@@ -100,7 +100,7 @@ interface WorkflowVisualizerProps {
   onConnectionStateChange?: (state: ConnectionState) => void;
 }
 
-export function WorkflowVisualizer({ graphId, currentThreadId, onConnectionStateChange }: WorkflowVisualizerProps) {
+export function WorkflowVisualizer({ graphId, currentThreadId, isRunning: _isRunning, onConnectionStateChange }: WorkflowVisualizerProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [loading, setLoading] = useState(true);

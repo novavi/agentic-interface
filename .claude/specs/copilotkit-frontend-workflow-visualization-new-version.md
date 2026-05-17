@@ -275,9 +275,25 @@ Replace the plain `<pre>` block used to render `agent.state` in the right-hand p
 Increased the font size of both group labels and nav item buttons in `components/Navbar.tsx`.
 
 - **Group labels** ("Workflows", "Conversations"): `text-xs` (12px) → `text-base` (16px), via two steps: `text-xs` → `text-sm` → `text-base`.
-- **Nav item buttons**: The `size="sm"` Button variant sets `text-[0.8rem]` (12.8px). Added `text-base` to each button's `className`; tailwind-merge overrides the variant's text size while leaving button height and padding unchanged. Applied to all five buttons: Run Workflow, Run Workflow V2, View Workflows, and the dynamic conversation entries.
+- **Nav item buttons**: The `size="sm"` Button variant sets `text-[0.8rem]` (12.8px). Added `text-base` to each button's `className`; tailwind-merge overrides the variant's text size while leaving button height and padding unchanged. Applied to all buttons: Run Workflow V2, View Workflows, and the dynamic conversation entries.
 
 **Files changed:** `components/Navbar.tsx`
+
+---
+
+### R20 — Archive unused components and pages
+
+Created `scratch/` at the repo root (sibling of `frontend/`) with `components/` and `app/` sub-folders to hold retired code that is no longer wired into the app but is worth keeping for reference.
+
+Moved and renamed with `.tsx.txt` extension (so Next.js and TypeScript ignore them):
+- `frontend/components/Workflow.tsx` → `scratch/components/Workflow.tsx.txt`
+- `frontend/components/WorkflowVisualizer.tsx` → `scratch/components/WorkflowVisualizer.tsx.txt`
+- `frontend/app/debug-replay/page.tsx` → `scratch/app/debug-replay/page.tsx.txt`
+- `frontend/app/workflow/[[...slug]]/page.tsx` → `scratch/app/workflow/[[...slug]]/page.tsx.txt`
+
+Also removed the now-dead "Run Workflow" nav item from `Navbar.tsx` (its `/workflow` route is in scratch) and the associated `workflowActive` path check. Updated the root redirect in `app/page.tsx` from `/workflow` to `/workflow-v2` so the app lands on the current workflow page on first open.
+
+**Files changed:** `scratch/` (created at repo root), `components/Navbar.tsx`, `app/page.tsx`
 
 ---
 
@@ -304,4 +320,5 @@ Increased the font size of both group labels and nav item buttons in `components
 | R17 — ReactFlow graph canvas styling | Complete |
 | R18 — JSON syntax highlighting for State panel | Complete |
 | R19 — Navbar font size increase | Complete |
+| R20 — Archive unused components and pages | Complete |
 

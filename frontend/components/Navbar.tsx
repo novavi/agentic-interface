@@ -13,8 +13,6 @@ interface NavbarProps {
 export function Navbar({ conversations }: NavbarProps) {
   const pathname = usePathname();
 
-  const workflowActive =
-    pathname === "/workflow" || pathname.startsWith("/workflow/");
   const workflowV2Active =
     pathname === "/workflow-v2" || pathname.startsWith("/workflow-v2/");
   const viewWorkflowsActive = pathname === "/view-workflows";
@@ -24,14 +22,6 @@ export function Navbar({ conversations }: NavbarProps) {
       <span className="px-2 py-1 text-base font-medium text-gray-500 uppercase tracking-wider">
         Workflows
       </span>
-      <Button
-        variant={workflowActive ? "secondary" : "ghost"}
-        size="sm"
-        className={cn("justify-start w-full cursor-pointer rounded-sm text-base")}
-        asChild
-      >
-        <Link href="/workflow">Run Workflow</Link>
-      </Button>
       <Button
         variant={workflowV2Active ? "secondary" : "ghost"}
         size="sm"
