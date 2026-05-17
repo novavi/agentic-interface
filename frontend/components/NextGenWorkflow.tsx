@@ -3,11 +3,24 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAgent, useCopilotKit } from "@copilotkit/react-core/v2";
+import {
+  ReactFlow,
+  Background,
+  Controls,
+  MarkerType,
+  useNodesState,
+  useEdgesState,
+  type Node,
+  type Edge,
+} from "@xyflow/react";
+import Dagre from "@dagrejs/dagre";
 import { ChevronDown, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { AGENT_CONFIG } from "@/config/backend-config";
+import { AGENT_CONFIG, getAgentGraphUrl } from "@/config/backend-config";
 
 const WORKFLOWS_KEY = "agentic-interface-workflows";
+const NODE_WIDTH = 180;
+const NODE_HEIGHT = 40;
 
 interface WorkflowEntry {
   threadId: string;
@@ -17,6 +30,18 @@ interface WorkflowEntry {
   completedAt?: string;
 }
 
+interface LangGraphEdge {
+  source: string;
+  target: string;
+  conditional?: boolean;
+  data?: unknown;
+}
+
+interface GraphResponse {
+  nodes: Array<{ id: string; data?: unknown }>;
+  edges: LangGraphEdge[];
+}
+
 const workflowAgents = AGENT_CONFIG.filter((a) => a.isWorkflowGraph);
 
 const STATUS_LABELS: Record<string, string> = {
@@ -24,6 +49,67 @@ const STATUS_LABELS: Record<string, string> = {
   running: "Running…",
   complete: "Complete",
 };
+
+function formatNodeLabel(id: string): string {
+  if (id === "__start__") return "Start";
+  if (id === "__end__" || id === "__END__") return "End";
+  return id
+    .replace(/_node$/, "")
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase())
+    .trim();
+}
+
+function applyDagreLayout(nodes: Node[], edges: Edge[]): Node[] {
+  const g = new Dagre.graphlib.Graph().setDefaultEdgeLabel(() => ({}));
+  g.setGraph({ rankdir: "TB", nodesep: 60, ranksep: 50 });
+  nodes.forEach((n) => g.setNode(n.id, { width: NODE_WIDTH, height: NODE_HEIGHT }));
+  edges.forEach((e) => g.setEdge(e.source, e.target));
+  Dagre.layout(g);
+  return nodes.map((n) => {
+    const { x, y } = g.node(n.id);
+    return { ...n, position: { x: x - NODE_WIDTH / 2, y: y - NODE_HEIGHT / 2 } };
+  });
+}
+
+function toReactFlow(graph: GraphResponse): { nodes: Node[]; edges: Edge[] } {
+  const nodes: Node[] = graph.nodes.map((n) => ({
+    id: n.id,
+    type:
+      n.id === "__start__"
+        ? "input"
+        : n.id === "__end__" || n.id === "__END__"
+          ? "output"
+          : "default",
+    data: { label: formatNodeLabel(n.id) },
+    position: { x: 0, y: 0 },
+  }));
+
+  const edges: Edge[] = graph.edges.map((e, i) => {
+    const edgeData = e.data as { conditional?: boolean; label?: string } | string | undefined;
+    const isConditional =
+      e.conditional ??
+      (typeof edgeData === "object" && edgeData !== null ? edgeData.conditional : undefined) ??
+      false;
+    const label =
+      typeof edgeData === "string"
+        ? edgeData
+        : typeof edgeData === "object" && edgeData !== null
+          ? edgeData.label
+          : undefined;
+
+    return {
+      id: `e-${i}-${e.source}-${e.target}`,
+      source: e.source,
+      target: e.target,
+      label,
+      style: isConditional ? { strokeDasharray: "5 5" } : undefined,
+      markerEnd: { type: MarkerType.ArrowClosed },
+    };
+  });
+
+  return { nodes: applyDagreLayout(nodes, edges), edges };
+}
 
 interface NextGenWorkflowProps {
   threadId: string | null;
@@ -37,6 +123,29 @@ export function NextGenWorkflow({ threadId: threadIdProp }: NextGenWorkflowProps
   const [currentThreadId, setCurrentThreadId] = useState<string | null>(threadIdProp);
   const [isWorkflowRunning, setIsWorkflowRunning] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
+
+  const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
+  const [graphLoading, setGraphLoading] = useState(true);
+  const [graphError, setGraphError] = useState<string | null>(null);
+
+  // Fetch static graph definition whenever the selected graph changes.
+  useEffect(() => {
+    setGraphLoading(true);
+    setGraphError(null);
+    fetch(getAgentGraphUrl(selectedGraphId))
+      .then((res) => {
+        if (!res.ok) throw new Error(`Failed to load graph (HTTP ${res.status})`);
+        return res.json() as Promise<GraphResponse>;
+      })
+      .then((data) => {
+        const { nodes: n, edges: e } = toReactFlow(data);
+        setNodes(n);
+        setEdges(e);
+      })
+      .catch((err: Error) => setGraphError(err.message))
+      .finally(() => setGraphLoading(false));
+  }, [selectedGraphId, setNodes, setEdges]);
 
   // Sync currentThreadId with URL (back/forward navigation).
   useEffect(() => {
@@ -166,8 +275,8 @@ export function NextGenWorkflow({ threadId: threadIdProp }: NextGenWorkflowProps
   const hasState = agent.state && Object.keys(agent.state).length > 0;
 
   return (
-    <div className="flex flex-col h-full p-6 gap-6 overflow-auto">
-      <div className="flex items-center gap-3">
+    <div className="flex flex-col h-full overflow-hidden">
+      <div className="flex-none flex items-center gap-3 px-6 pt-6 pb-3">
         <div className="relative">
           <select
             value={selectedGraphId}
@@ -194,44 +303,82 @@ export function NextGenWorkflow({ threadId: threadIdProp }: NextGenWorkflowProps
       </div>
 
       {currentThreadId && (
-        <div className="flex flex-col gap-6">
-          <div className="flex flex-col gap-1">
-            <p className="font-mono text-xs text-gray-400">Run ID: {currentThreadId}</p>
-            <p className="font-mono text-xs text-gray-400">Status: {statusLabel}</p>
-          </div>
+        <div className="flex-none flex gap-6 px-6 pb-3">
+          <p className="font-mono text-xs text-gray-400">Run ID: {currentThreadId}</p>
+          <p className="font-mono text-xs text-gray-400">Status: {statusLabel}</p>
+        </div>
+      )}
 
-          {assistantMessages.length === 0 && !hasState && (
-            <div className="flex items-center gap-2 text-sm text-gray-500">
-              {isConnecting ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-              <span>{isConnecting ? "Connecting…" : "Waiting for workflow…"}</span>
+      <div className="flex flex-row flex-1 min-h-0 gap-4 px-6 pb-6">
+        {/* Left: static graph definition */}
+        <div className="flex-1 min-w-0">
+          {graphLoading ? (
+            <div className="flex items-center justify-center h-full text-sm text-gray-400">
+              Loading graph…
             </div>
-          )}
-
-          {assistantMessages.length > 0 && (
-            <div className="flex flex-col gap-2">
-              <h2 className="text-sm font-semibold text-gray-300">Messages</h2>
-              <div className="font-mono text-sm text-gray-200 whitespace-pre-wrap bg-gray-900 rounded p-4">
-                {assistantMessages.map((m, i) => (
-                  <div key={i} className={i > 0 ? "mt-3 pt-3 border-t border-gray-800" : ""}>
-                    {typeof m.content === "string"
-                      ? m.content
-                      : JSON.stringify(m.content, null, 2)}
-                  </div>
-                ))}
-              </div>
+          ) : graphError ? (
+            <div className="flex items-center justify-center h-full text-sm text-red-400">
+              {graphError}
             </div>
-          )}
-
-          {hasState && (
-            <div className="flex flex-col gap-2">
-              <h2 className="text-sm font-semibold text-gray-300">State</h2>
-              <pre className="font-mono text-sm text-gray-200 bg-gray-900 rounded p-4 overflow-auto">
-                {JSON.stringify(agent.state, null, 2)}
-              </pre>
+          ) : (
+            <div className="h-full w-full">
+              <ReactFlow
+                nodes={nodes}
+                edges={edges}
+                onNodesChange={onNodesChange}
+                onEdgesChange={onEdgesChange}
+                nodesDraggable={false}
+                nodesConnectable={false}
+                elementsSelectable={false}
+                fitView
+                fitViewOptions={{ padding: 0.2 }}
+                colorMode="dark"
+              >
+                <Background />
+                <Controls showInteractive={false} />
+              </ReactFlow>
             </div>
           )}
         </div>
-      )}
+
+        {/* Right: messages and state */}
+        <div className="flex-1 min-w-0 flex flex-col gap-3 overflow-auto">
+          {!currentThreadId ? (
+            <div className="flex items-center justify-center h-full text-sm text-gray-500">
+              No workflow started yet.
+            </div>
+          ) : assistantMessages.length === 0 && !hasState ? (
+            <div className="flex items-center justify-center h-full text-sm text-gray-500">
+              {isConnecting ? <Loader2 className="w-5 h-5 animate-spin" /> : "Waiting for workflow…"}
+            </div>
+          ) : (
+            <>
+              {assistantMessages.length > 0 && (
+                <div className="flex flex-col gap-2">
+                  <h2 className="text-sm font-semibold text-gray-300">Messages</h2>
+                  <div className="font-mono text-sm text-gray-200 whitespace-pre-wrap bg-gray-900 rounded p-4">
+                    {assistantMessages.map((m, i) => (
+                      <div key={i} className={i > 0 ? "mt-3 pt-3 border-t border-gray-800" : ""}>
+                        {typeof m.content === "string"
+                          ? m.content
+                          : JSON.stringify(m.content, null, 2)}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {hasState && (
+                <div className="flex flex-col gap-2">
+                  <h2 className="text-sm font-semibold text-gray-300">State</h2>
+                  <pre className="font-mono text-sm text-gray-200 bg-gray-900 rounded p-4 overflow-auto">
+                    {JSON.stringify(agent.state, null, 2)}
+                  </pre>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

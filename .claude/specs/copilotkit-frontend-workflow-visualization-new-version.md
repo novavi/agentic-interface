@@ -95,6 +95,24 @@ Fixed by replacing `router.push` with `window.history.pushState(null, '', \`/wor
 
 ---
 
+### R8 — Static graph visualizer (left panel)
+
+Added a two-panel layout: static graph definition on the left, messages and state on the right.
+
+Inlined the minimal graph helpers from the earlier `WorkflowVisualizer.tsx` directly into `NextGenWorkflow.tsx` — no new component file, no cross-component prop passing. This preserves the architectural constraint that all agent state and rendering stays in a single component.
+
+Added: `NODE_WIDTH`/`NODE_HEIGHT` constants, `LangGraphEdge`/`GraphResponse` interfaces, `formatNodeLabel`, `applyDagreLayout`, `toReactFlow` helper functions, `useNodesState`/`useEdgesState` state, and `graphLoading`/`graphError` state.
+
+A single `useEffect` keyed on `[selectedGraphId]` fetches the static graph definition from `getAgentGraphUrl(selectedGraphId)` and populates nodes and edges via `toReactFlow`. The graph re-fetches automatically when the user changes the graph selector. No SSE, no live node highlighting — static definition only.
+
+The left panel renders `Loading graph…` / a red error message / the `ReactFlow` canvas depending on fetch state. The `ReactFlow` instance is configured with `nodesDraggable={false}`, `nodesConnectable={false}`, `elementsSelectable={false}`, `fitView`, and `colorMode="dark"`.
+
+The right panel is unchanged from R7 — messages and state with the same loading/empty states.
+
+**Files changed:** `components/NextGenWorkflow.tsx`
+
+---
+
 ## Status
 
 | Requirement | Status |
@@ -106,3 +124,4 @@ Fixed by replacing `router.push` with `window.history.pushState(null, '', \`/wor
 | R5 — Rename to `NextGenWorkflow` | Complete |
 | R6 — Session storage tracking + status display | Complete |
 | R7 — Routing | Complete |
+| R8 — Static graph visualizer | Complete |
