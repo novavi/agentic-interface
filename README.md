@@ -1,6 +1,8 @@
 # Agentic Interface (Proof of concept)
 
-Proof-of-concept frontend for agentic workflows supporting streaming visual graph rendering.
+Proof-of-concept frontend for agentic workflows supporting streaming visual graph rendering. Note that this is very much a work in progress.
+
+![Frontend screenshot](docs/frontend-screenshot.png)
 
 # Architecture
 
@@ -60,7 +62,7 @@ A UI supporting streaming chat, tool call visual renderers and streaming visual 
 ```bash
 cd frontend
 cp .env.local.example .env.local   # already pre-filled with localhost default
-npm install
+npm ci
 npm run dev                        # starts on http://localhost:3000
 ```
 
