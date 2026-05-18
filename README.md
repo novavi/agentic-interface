@@ -57,7 +57,7 @@ uv run langgraph dev --port 2025   # starts the server at http://localhost:2025
 
 ## Frontend
 
-A UI supporting streaming chat, tool call visual renderers and streaming visual graph rendering built with [Next.js](https://nextjs.org/), [CopilotKit](https://www.copilotkit.ai/), [AG-UI](https://docs.ag-ui.com/) and [React Flow](https://reactflow.dev/), connecting to the Agent - Conversational LangGraph agent.
+A frontend supporting streaming chat, tool call visual renderers and real-time streaming graph visualization built with [Next.js](https://nextjs.org/), [CopilotKit](https://www.copilotkit.ai/), [AG-UI](https://docs.ag-ui.com/) and [React Flow](https://reactflow.dev/), connecting to the **Agent - Conversational** and **Agent - Autonomous** LangGraph agents.
 
 ```bash
 cd frontend
