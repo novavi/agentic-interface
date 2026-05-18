@@ -68,7 +68,7 @@ npm run dev                        # starts on http://localhost:3000
 
 > **Note:** The `agent-convo` and `agent-auto` agents must be running (see above sections) before starting the frontend so the `/api/copilotkit` Next.js route can reach the agents.
 
-## Potential Further Work
+# Potential Further Work
 
 If this work was taken further, next steps would likely include some of the following:
 
@@ -94,7 +94,7 @@ If this work was taken further, next steps would likely include some of the foll
   - Dedicated page for alerts, actions and HITL items (arguably this should be the default page).
   - Dashboard pages for leadership and operations to show overall trends, performance, bottlenecks, issues, etc.
 
-## Implementation Notes
+# Implementation Notes
 
 The proof-of-concept was built rapidly to provide a starting point to demonstrate some of the important considerations in creating Agentic Interfaces. In particular, the following things should be called out:
 
